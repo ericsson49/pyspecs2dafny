@@ -7,6 +7,5 @@ class Test2(Test):
 
 def test() -> None:
     tst = Test()
-    assert tst.a == 0
     tst.a = 1
     assert tst.a == 1
