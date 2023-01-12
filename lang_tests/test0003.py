@@ -1,6 +1,6 @@
 # `for` tests
 def test() -> None:
-  a: PyList[int] = []
+  a: PyList[int] = [0]
   a[0] = 1
   assert a[0] == 1
   b: PyDict[int,int] = {}
