@@ -53,6 +53,8 @@ def destr[T <: TExpr](e: T): (List[TExpr], List[TExpr] => T) = e match
     (List(value), elems => TExpr.Attribute(elems(0), attr).asInstanceOf[T])
   case Subscript(value, indices) =>
     (List(value) ++ indices, elems => TExpr.Subscript(elems(0), elems.slice(1, elems.size)).asInstanceOf[T])
+  case IfExp(test, body, orelse) =>
+    (List(test), elems => IfExp(elems(0), body, orelse).asInstanceOf[T])
 
 def introNewVar(e: TExpr)(using freshVarF: () => String): (List[(String, TExpr)], TExpr) =
   if e.isInstanceOf[Name] then

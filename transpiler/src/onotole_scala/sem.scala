@@ -6,6 +6,8 @@ import ast.TExpr.*
 
 import scala.collection.immutable.List
 
+
+
 def sem(e: TExpr): (List[Stmt], TExpr) = e match
   case _: NameConstant => (List(), e)
   case _: Num => (List(), e)
@@ -40,10 +42,43 @@ def sem(e: TExpr): (List[Stmt], TExpr) = e match
     val (idxAssgns, idxV) = indics.map(sem(_)).unzip
     (valAssgns ++ (idxAssgns.flatten), Subscript(resV, idxV))
 
+def simplifyIfExp(e: TExpr)(using fv: () => String): (List[Stmt], TExpr) = e match
+  case IfExp(test, body, orelse) =>
+    val (testStmts, testRes) = simplifyIfExp(test)
+    val (bodyStmts, bodyRes) = simplifyIfExp(body)
+    val (elseStmts, elseRes) = simplifyIfExp(orelse)
+    val ifResVar = fv()
+    testStmts.appended(Stmt.If(testRes,
+      bodyStmts :+ Stmt.Assign(Name(ifResVar), bodyRes),
+      elseStmts :+ Stmt.Assign(Name(ifResVar), elseRes)
+    )) -> Name(ifResVar)
+  case _ =>
+    val (exprs, builder) = destr(e)
+    val (stmts, resExprs) = exprs.map(simplifyIfExp(_)).unzip
+    stmts.flatten -> builder.apply(resExprs)
+
+def simplifyGeneratorExp(e: TExpr)(using fv: () => String): (List[Stmt], TExpr) = e match
+  case GeneratorExp(e: TExpr, gen) =>
+    val v = gen.tgt match
+      case Name(v) => v
+      case _ => ???
+    val accV = fv()
+    val mapBody = Expr(Call(Attribute(Name(accV), "append"), List(e)))
+    val filtBody = gen.ifs.foldLeft(mapBody)((b, test) =>
+      If(test, List(b), List.empty)
+    )
+    List(
+      Assign(Name(v), PyList(List.empty)),
+      For(gen.tgt, gen.iter, List(filtBody))
+    ) -> Name(accV)
+
 def sem2(e: TExpr, newVar: Boolean)(using fv: () => String): (List[Stmt], TExpr) =
   val (assgns, resE) = flattenExprs(e)
-  val (assgns2, resE2) = if newVar then introNewVar(resE) else (List.empty, resE)
-  (assgns ++ assgns2).map((v,e) => Assign(Name(v), e)) -> resE2
+  val (stmts, resE1) = simplifyIfExp(resE)
+  val (assgns2, resE2) = if newVar then introNewVar(resE1) else (List.empty, resE1)
+  assgns.map((v,e) => Assign(Name(v), e))
+    ++ stmts
+    ++ assgns2.map((v,e) => Assign(Name(v), e)) -> resE2
 def sem(cs: List[Stmt])(using fv: () => String): List[Stmt] = cs.flatMap(sem)
 def sem(s: Stmt)(using fv: () => String): List[Stmt] = s match
   case Expr(e) =>

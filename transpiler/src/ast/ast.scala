@@ -32,6 +32,7 @@ enum Stmt extends PyAstNode:
 
 type TopLevelDef = Stmt.FunctionDef | Stmt.ClassDef
 
+case class Comprehension(tgt: TExpr, iter: TExpr, ifs: List[TExpr])
 enum TExpr extends PyAstNode:
   case NameConstant(c: Option[Boolean])
   case Num(n: Int)
@@ -48,3 +49,5 @@ enum TExpr extends PyAstNode:
   case BinOp(left: TExpr, op: String, right: TExpr)
   case UnaryOp(op: String, operand: TExpr)
   case Compare(left: TExpr, ops: List[String], comparators: List[TExpr])
+  case IfExp(test: TExpr, body: TExpr, orelse: TExpr)
+  case GeneratorExp(e: TExpr, gen: Comprehension)

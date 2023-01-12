@@ -18,6 +18,7 @@ def live_vars(e: TExpr): Set[String] = e match
   case PyList(elems) => elems.flatMap(live_vars(_)).toSet
   case PySet(elems) => elems.flatMap(live_vars(_)).toSet
   case PyDict(keys, values) => (keys++values).flatMap(live_vars(_)).toSet
+  case IfExp(test, body, orelse) => List(test, body, orelse).flatMap(live_vars(_)).toSet
 
 def getTargetVars(e: TExpr): Set[String] = e match
   case Name(n) => Set(n)

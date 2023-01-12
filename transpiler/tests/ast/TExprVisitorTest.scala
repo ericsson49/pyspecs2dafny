@@ -51,5 +51,8 @@ object TExprVisitorTest extends TestSuite {
     test("attribute") {
       parseTExpr("a.f") ==> Attribute(Name("a"),"f")
     }
+    test("if expr") {
+      parseTExpr("b if a else c") ==> IfExp(Name("a"), Name("b"), Name("c"))
+    }
   }
 }

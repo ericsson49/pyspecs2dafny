@@ -51,6 +51,7 @@ def inferVarDecls(s: Stmt, knownVars: Set[String], outLVs: Set[String]): (List[S
     case Stmt.Assign(TExpr.Name(n), v) if newVs == Set(n) =>
       List(Stmt.VarDecl(n, None, Some(v)).asInstanceOf[Stmt.VarDecl]) -> List.empty
     case Stmt.Assign(TExpr.Name(_), _) => List.empty -> List(s)
+    case _: Stmt.Assign => List.empty -> List(s)
     case Stmt.AnnAssign(TExpr.Name(n), anno, v) if newVs == Set(n) =>
       List(Stmt.VarDecl(n, Some(anno), v).asInstanceOf[Stmt.VarDecl]) -> List.empty
     case _: (Stmt.Assign|Stmt.AnnAssign) =>
@@ -64,3 +65,7 @@ def inferVarDecls(s: Stmt, knownVars: Set[String], outLVs: Set[String]): (List[S
 
 def inferVarDecls(f: Stmt.FunctionDef): Stmt.FunctionDef =
   f.copy(body = inferVarDecls(f.body, Set(), Set()))
+
+def inferVarDeclsTL(tl: ast.TopLevelDef): ast.TopLevelDef = tl match
+  case f: Stmt.FunctionDef => inferVarDecls(f)
+  case _ => tl

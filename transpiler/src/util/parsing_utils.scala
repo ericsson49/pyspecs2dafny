@@ -14,7 +14,7 @@ def parser(s: String): Python3Parser =
   parser(CharStreams.fromString(s))
 
 def parseTExpr(s: String): TExpr =
-  TExprVisitor.visit(parser(s).expr())
+  TExprVisitor.visit(parser(s).test())
 
 def parseSmallStmt(s: String): Stmt =
   StmtVisitor.visit(parser(s).small_stmt())

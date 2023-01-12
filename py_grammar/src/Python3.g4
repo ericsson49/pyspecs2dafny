@@ -76,9 +76,10 @@ suite: simple_stmt # SimpleStmt
     | INDENT body+=stmt+ DEDENT # Block;
 
 comp_op: '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not';
-test: test 'if' test 'else' test
-        | 'lambda' (varargslist)? ':' test
-        | expr;
+test: body=test 'if' tst=test 'else' orelse=test # IfExp
+        | 'lambda' (varargslist)? ':' test # Lambda
+        | expr # TExpr
+        ;
 
 expr: exprs+=expr ('or' exprs+=expr)+ # OrExpr
     | exprs+=expr ('and' exprs+=expr)+ # AndExpr

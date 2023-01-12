@@ -12,6 +12,15 @@ def getElems(ctx: Python3Parser.Test_listContext): List[Python3Parser.TestContex
   if ctx == null then List.empty else toList(ctx.elems)
 
 object TExprVisitor extends Python3BaseVisitor[TExpr] {
+  override def visitIfExp(ctx: Python3Parser.IfExpContext): TExpr =
+    TExpr.IfExp(visit(ctx.tst), visit(ctx.body), visit(ctx.orelse))
+
+  override def visitLambda(ctx: Python3Parser.LambdaContext): TExpr =
+    ???
+
+  override def visitTExpr(ctx: Python3Parser.TExprContext): TExpr =
+    visit(ctx.expr())
+
   override def visitOrExpr(ctx: Python3Parser.OrExprContext): TExpr =
     TExpr.BoolOp("or", toList(ctx.exprs).map(visit(_)))
 
@@ -60,21 +69,21 @@ object TExprVisitor extends Python3BaseVisitor[TExpr] {
     )
 
   override def visitParensExpr(ctx: Python3Parser.ParensExprContext): TExpr =
-    visitTest(ctx.test())
+    visit(ctx.test())
 
   override def visitTuple(ctx: Python3Parser.TupleContext): TExpr =
-    TExpr.Tuple(getElems(ctx.test_list()).map(visitTest(_)))
+    TExpr.Tuple(getElems(ctx.test_list()).map(visit(_)))
 
   override def visitListLit(ctx: Python3Parser.ListLitContext): TExpr =
-    TExpr.PyList(getElems(ctx.test_list()).map(visitTest(_)))
+    TExpr.PyList(getElems(ctx.test_list()).map(visit(_)))
 
   override def visitDictLit(ctx: Python3Parser.DictLitContext): TExpr =
-    val keys = toList(ctx.keys).map(visitTest(_))
-    val values = toList(ctx.values).map(visitTest(_))
+    val keys = toList(ctx.keys).map(visit(_))
+    val values = toList(ctx.values).map(visit(_))
     TExpr.PyDict(keys, values)
 
   override def visitSetLit(ctx: Python3Parser.SetLitContext): TExpr =
-    TExpr.PySet(getElems(ctx.test_list()).map(visitTest(_)))
+    TExpr.PySet(getElems(ctx.test_list()).map(visit(_)))
 
   override def visitName(ctx: Python3Parser.NameContext): TExpr =
     TExpr.Name(ctx.id.getText)
