@@ -1,5 +1,6 @@
 # `for` tests
 def test() -> None:
+  #@@ensures ret_.Result?
   a: PyList[int] = [0]
   a[0] = 1
   assert a[0] == 1

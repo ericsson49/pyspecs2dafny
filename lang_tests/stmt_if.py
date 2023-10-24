@@ -1,5 +1,6 @@
 # `if` tests
 def test() -> None:
+  #@@ensures ret_.Result?
   a = 5
   b = 6
   if a < b:

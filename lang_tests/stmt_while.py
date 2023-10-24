@@ -1,6 +1,6 @@
 # `while` tests
 def test() -> None:
-  # @@ensures ret_.Result?
+  #@@ensures ret_.Result?
   a = 5
   while a >= 0:
     #@@decreases a.value
