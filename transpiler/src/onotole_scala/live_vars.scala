@@ -15,6 +15,7 @@ def live_vars(e: TExpr): Set[String] = e match
   case UnaryOp(_, operand) => live_vars(operand)
   case BinOp(left, _, right) => live_vars(left) ++ live_vars(right)
   case Compare(left, _, operands) => live_vars(left) ++ operands.flatMap(live_vars(_))
+  case PyTuple(elems) => elems.flatMap(live_vars(_)).toSet
   case PyList(elems) => elems.flatMap(live_vars(_)).toSet
   case PySet(elems) => elems.flatMap(live_vars(_)).toSet
   case PyDict(keys, values) => (keys++values).flatMap(live_vars(_)).toSet
@@ -28,7 +29,7 @@ def getTargetVars(e: TExpr): Set[String] = e match
 def getReadVarsInTgt(e: TExpr): Set[String] = e match
   case Name(_) => Set()
   case Attribute(t, _) => live_vars(t)
-  case Subscript(v, indices) => live_vars(v) ++ indices.flatMap(live_vars(_))
+  case Subscript(v, indices) => live_vars(v) ++ indices.flatMap(live_vars)
 
 def live_vars(cs: List[Stmt], out: Set[String]): Set[String] = cs match
   case Nil => out
@@ -62,3 +63,5 @@ def live_vars(s: Stmt, out: Set[String]): Set[String] = s match
     } do {}
     curr
   case _: Break => out // todo
+  case Return(None) => Set()
+  case Return(Some(value)) => live_vars(value)

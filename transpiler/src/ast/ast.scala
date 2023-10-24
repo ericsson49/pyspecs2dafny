@@ -27,7 +27,8 @@ enum Stmt extends PyAstNode:
   case Break()
   case Continue()
 
-  case FunctionDef(name: String, body: List[Stmt])
+  case FunctionDef(name: String, args: List[(String, TExpr)],
+                   body: List[Stmt], returns: Option[TExpr], anno: List[Annotation] = List())
   case ClassDef(name: String, base: TExpr, fields: List[(String, TExpr, Option[TExpr])])
 
 type TopLevelDef = Stmt.FunctionDef | Stmt.ClassDef
@@ -41,7 +42,7 @@ enum TExpr extends PyAstNode:
   case Attribute(value: TExpr, attr: String)
   case Subscript(value: TExpr, indices: List[TExpr])
   case Call(func: TExpr, args: List[TExpr], kwds: List[(String, TExpr)] = List.empty)
-  case Tuple(elems: List[TExpr])
+  case PyTuple(elems: List[TExpr])
   case PyList(elems: List[TExpr])
   case PyDict(keys: List[TExpr], values: List[TExpr])
   case PySet(elems: List[TExpr])
@@ -51,3 +52,5 @@ enum TExpr extends PyAstNode:
   case Compare(left: TExpr, ops: List[String], comparators: List[TExpr])
   case IfExp(test: TExpr, body: TExpr, orelse: TExpr)
   case GeneratorExp(e: TExpr, gen: Comprehension)
+  case Lambda(args: List[String], body: TExpr)
+  case Let(binders: List[(String, TExpr)], value: TExpr)

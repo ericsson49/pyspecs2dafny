@@ -1,8 +1,11 @@
 package ast
 
+import ast.FuncArg.*
 import python3_grammar.*
 import ast.TExpr
+import ast.TExpr.GeneratorExp
 import ast.Trailer.{AttributeTrailer, CallTrailer, SubscriptTrailer}
+import python3_grammar.Python3Parser.TypedargslistContext
 
 import scala.jdk.CollectionConverters.*
 
@@ -16,7 +19,10 @@ object TExprVisitor extends Python3BaseVisitor[TExpr] {
     TExpr.IfExp(visit(ctx.tst), visit(ctx.body), visit(ctx.orelse))
 
   override def visitLambda(ctx: Python3Parser.LambdaContext): TExpr =
-    ???
+    def visitVfpdef(ctx: Python3Parser.VfpdefContext): String = ctx.NAME().getText
+    val args = ctx.varargslist().vfpdef().asScala.toList.map(visitVfpdef(_))
+    TExpr.Lambda(args, visit(ctx.test()))
+
 
   override def visitTExpr(ctx: Python3Parser.TExprContext): TExpr =
     visit(ctx.expr())
@@ -63,7 +69,7 @@ object TExprVisitor extends Python3BaseVisitor[TExpr] {
     val trailers = toList(ctx.trailer()).map(TrailerVisitor.visit(_))
     val atom = visit(ctx.atom())
     trailers.foldLeft(atom)((a, t) => t match
-      case CallTrailer(args) => TExpr.Call(a, args)
+      case CallTrailer(args, kwds) => TExpr.Call(a, args, kwds)
       case AttributeTrailer(attr) => TExpr.Attribute(a, attr)
       case SubscriptTrailer(index) => TExpr.Subscript(a, index)
     )
@@ -72,18 +78,30 @@ object TExprVisitor extends Python3BaseVisitor[TExpr] {
     visit(ctx.test())
 
   override def visitTuple(ctx: Python3Parser.TupleContext): TExpr =
-    TExpr.Tuple(getElems(ctx.test_list()).map(visit(_)))
+    TExpr.PyTuple(getElems(ctx.test_list()).map(visit(_)))
 
   override def visitListLit(ctx: Python3Parser.ListLitContext): TExpr =
     TExpr.PyList(getElems(ctx.test_list()).map(visit(_)))
+
+  override def visitListComp(ctx: Python3Parser.ListCompContext): TExpr = {
+    val genExp = GeneratorExp(TExprVisitor.visit(ctx.expr()), ComprehensionVisitor.visit(ctx.comp_for()))
+    //TExpr.Call(TExpr.Name("list"), List(genExp))
+    genExp
+  }
 
   override def visitDictLit(ctx: Python3Parser.DictLitContext): TExpr =
     val keys = toList(ctx.keys).map(visit(_))
     val values = toList(ctx.values).map(visit(_))
     TExpr.PyDict(keys, values)
 
+  override def visitDictComp(ctx: Python3Parser.DictCompContext): TExpr =
+    TExpr.Call(TExpr.Name("dict"), List(GeneratorExp(TExpr.PyTuple(List(TExprVisitor.visit(ctx.key), TExprVisitor.visit(ctx.value))), ComprehensionVisitor.visit(ctx.comp_for()))))
+
   override def visitSetLit(ctx: Python3Parser.SetLitContext): TExpr =
     TExpr.PySet(getElems(ctx.test_list()).map(visit(_)))
+
+  override def visitSetComp(ctx: Python3Parser.SetCompContext): TExpr =
+    TExpr.Call(TExpr.Name("set"), List(GeneratorExp(TExprVisitor.visit(ctx.expr()), ComprehensionVisitor.visit(ctx.comp_for()))))
 
   override def visitName(ctx: Python3Parser.NameContext): TExpr =
     TExpr.Name(ctx.id.getText)
@@ -91,7 +109,8 @@ object TExprVisitor extends Python3BaseVisitor[TExpr] {
   override def visitNumber(ctx: Python3Parser.NumberContext): TExpr =
     TExpr.Num(ctx.n.getText.toInt)
 
-  override def visitStr(ctx: Python3Parser.StrContext): TExpr = ???
+  override def visitStr(ctx: Python3Parser.StrContext): TExpr =
+    TExpr.Str(ctx.getText)
 
   override def visitEllipsis(ctx: Python3Parser.EllipsisContext): TExpr = ???
 
@@ -102,15 +121,42 @@ object TExprVisitor extends Python3BaseVisitor[TExpr] {
   override def visitFalse(ctx: Python3Parser.FalseContext): TExpr = TExpr.NameConstant(Some(false))
 }
 
+object ComprehensionVisitor extends Python3BaseVisitor[Comprehension] {
+  override def visitComp_for(ctx: Python3Parser.Comp_forContext): Comprehension =
+    val args = ctx.name_list().n.asScala.toList.map(_.getText)
+    if args.size != 1 then ???
+    Comprehension(TExpr.Name(args(0)), TExprVisitor.visit(ctx.coll), ctx.ifs.asScala.toList.map(TExprVisitor.visit(_)))
+}
+
+enum FuncArg:
+  case NormalArg(e: TExpr)
+  case NamedArg(n: String, e: TExpr)
+
+object FuncArgVisitor extends Python3BaseVisitor[FuncArg] {
+  override def visitTestArg(ctx: Python3Parser.TestArgContext): FuncArg =
+    NormalArg(TExprVisitor.visit(ctx.test()))
+
+  override def visitGeneratorArg(ctx: Python3Parser.GeneratorArgContext): FuncArg =
+    NormalArg(GeneratorExp(TExprVisitor.visit(ctx.expr()), ComprehensionVisitor.visit(ctx.comp_for())))
+
+  override def visitNamedArg(ctx: Python3Parser.NamedArgContext): FuncArg =
+    NamedArg(ctx.NAME().getText, TExprVisitor.visit(ctx.test()))
+
+  override def visitStarArg(ctx: Python3Parser.StarArgContext): FuncArg =
+    ???
+}
+
 enum Trailer:
-  case CallTrailer(args: List[TExpr])
+  case CallTrailer(args: List[TExpr], kwds: List[(String, TExpr)])
   case SubscriptTrailer(indices: List[TExpr])
   case AttributeTrailer(attr: String)
 
 object TrailerVisitor extends Python3BaseVisitor[Trailer] {
   override def visitCallTrailer(ctx: Python3Parser.CallTrailerContext): Trailer =
-    val args = Option(ctx.arglist()).map(args => toList(args.argument()).map(TExprVisitor.visit(_))).getOrElse(List.empty)
-    CallTrailer(args)
+    val args = Option(ctx.arglist()).map(_.arg.asScala.toList.map(FuncArgVisitor.visit(_))).getOrElse(List())
+    val posArgs = args.takeWhile(_.isInstanceOf[NormalArg]).map(_.asInstanceOf[NormalArg]).map(_.e)
+    val restArgs = args.dropWhile(_.isInstanceOf[NormalArg]).map(_.asInstanceOf[NamedArg]).map(arg => arg.n -> arg.e)
+    CallTrailer(posArgs, restArgs)
 
   override def visitSubscrTrailer(ctx: Python3Parser.SubscrTrailerContext): Trailer =
     val subscripts = toList(ctx.subscriptlist().subscript())
@@ -134,6 +180,9 @@ object StmtVisitor extends Python3BaseVisitor[Stmt] {
 
   override def visitContinue(ctx: Python3Parser.ContinueContext): Stmt =
     Stmt.Continue()
+
+  override def visitReturn(ctx: Python3Parser.ReturnContext): Stmt =
+    Stmt.Return(Option(ctx.test_list()).map(TExprVisitor.visit(_)))
 
   override def visitExprStmt(ctx: Python3Parser.ExprStmtContext): Stmt =
     val exprs = toList(ctx.test_list().elems).map(TExprVisitor.visit(_))
@@ -162,8 +211,13 @@ object StmtVisitor extends Python3BaseVisitor[Stmt] {
   override def visitIf(ctx: Python3Parser.IfContext): Stmt =
     val test = TExprVisitor.visit(ctx.tst)
     val body = StmtsVisitor.visit(ctx.body)
+    val elif_tests = toList(ctx.elif_tsts).map(TExprVisitor.visit(_))
+    val elif_bodies = toList(ctx.elif_bodies).map(StmtsVisitor.visit(_))
     val orelse = Option(ctx.orelse).map(StmtsVisitor.visit(_)).getOrElse(List.empty)
-    Stmt.If(test, body, orelse)
+    val elifs = elif_tests.zip(elif_bodies).foldRight(orelse)(
+      (testAndBody, orelse) => List(Stmt.If(testAndBody._1, testAndBody._2, orelse))
+    )
+    Stmt.If(test, body, elifs)
 
   override def visitWhile(ctx: Python3Parser.WhileContext): Stmt =
     val test = TExprVisitor.visit(ctx.tst)
@@ -179,7 +233,11 @@ object StmtVisitor extends Python3BaseVisitor[Stmt] {
   override def visitFunc_def(ctx: Python3Parser.Func_defContext): Stmt =
     val name = ctx.name.getText
     val body = StmtsVisitor.visit(ctx.suite())
-    Stmt.FunctionDef(name, body)
+    def visit(ctx: Python3Parser.TfpargContext): (String, TExpr) =
+      FArgVisitor.visit(ctx.tfpdef())
+    val args = Option(ctx.typedargslist()).map(targs => toList(targs.targ).map(visit)).getOrElse(List())
+    val returns = Option(ctx.type_expr()).map(TExprVisitor.visit(_))
+    Stmt.FunctionDef(name, args, body, returns)
 
   override def visitClass_def(ctx: Python3Parser.Class_defContext): Stmt =
     val name = ctx.name.getText
@@ -194,6 +252,10 @@ object StmtVisitor extends Python3BaseVisitor[Stmt] {
     Stmt.Annotation(ctx.ANNO_COMMENT().getText.substring(1))
 }
 
+object FArgVisitor extends Python3BaseVisitor[(String, TExpr)] {
+  override def visitTfpdef(ctx: Python3Parser.TfpdefContext): (String, TExpr) =
+    ctx.argName.getText -> TExprVisitor.visit(ctx.argType)
+}
 object ClassFields extends Python3BaseVisitor[List[(String, TExpr, Option[TExpr])]] {
   override def visitEmptyClass(ctx: Python3Parser.EmptyClassContext): List[(String, TExpr, Option[TExpr])] =
     List()

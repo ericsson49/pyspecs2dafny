@@ -31,14 +31,6 @@ object FlattenExprsTests extends TestSuite {
       val (assgns0, res0) = flattenExprs(expr0)(using mkFreshVarsF())
       res0 ==> expectedRes0
       assgns0 ==> expectedAssgns0
-      val assgnAcc = scala.collection.mutable.ListBuffer[(String, TExpr)]()
-      val res = flattenExprs2(expr0, assgnAcc)(using mkFreshVarsF())
-      assgnAcc.toList ==> List(
-        "tmp_0" -> Num(1),
-        "tmp_1" -> Call(Name("b"),List(Name("tmp_0"))),
-        "tmp_2" -> Num(2)
-      )
-      res ==> Call(Name("a"),List(Name("tmp_1"),Name("tmp_2")))
     }
 
   }

@@ -7,19 +7,35 @@ import org.antlr.v4.runtime.{CharStreams, CommonTokenStream}
 import python3_grammar.{Python3Lexer, Python3Parser}
 import util.*
 
+import java.io.{File, FileFilter, FileWriter, FilenameFilter}
 import java.nio.file.Paths
 
-@main def testtt() =
-  val p1 = parser(CharStreams.fromPath(Paths.get("lang_tests", "test_if_expr.py")))
-  val tlDefs = TopLevelVisitor.visitFile_input(p1.file_input())
-  val annotated = tlDefs.map(annotateTopLevel(_))
-  var num = 0
-  val freshV = () =>
-    val vn = "tmp_" + num
-    num += 1
+def mkFV(): (String) => String =
+  var counters: Map[String, Int] = Map()
+  (prefix) =>
+    val num = counters.getOrElse(prefix, 0)
+    val vn = prefix + "_" + num
+    counters = counters.updated(prefix, num + 1)
     vn
-  val tr = annotated.map(semTL(_)(using freshV))
+
+@main def testtt() =
+  val tests = Paths.get("lang_tests").toFile.listFiles(f =>
+    f.isFile && f.getName.endsWith(".py")
+  ).map(f => f.getName.substring(0, f.getName.length()-3)).toList
+  for testName <- tests do
+    println(s"processing $testName")
+    transpileTest(testName)
+
+def transpileTest(testName: String): Unit =
+  val p1 = parser(CharStreams.fromPath(Paths.get("lang_tests", s"$testName.py")))
+  val tlDefs = TopLevelVisitor.visitFile_input(p1.file_input())
+  val tr = tlDefs.map(semTL2(_)(using mkFV()))
   val vd = tr.map(inferVarDeclsTL(_))
-  val gen = CodeGen("")
+  val outF = Paths.get("dafny", s"$testName.dfy")
+  val fw = new FileWriter(outF.toFile)
+  val gen = CodeGen("", fw)
+  gen.out("include \"pylib.dfy\"")
+  gen.out("")
   vd.foreach(genDafnyTL(_)(using gen))
+  fw.close()
 

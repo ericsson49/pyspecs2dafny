@@ -7,13 +7,13 @@ def new_defs_and_updates(cs: List[Stmt], knownVars: Set[String], outLVs: Set[Str
   case Nil => (Set(), Set())
   case ::(s, rest) =>
     val lvsAfter = live_vars(rest, outLVs)
-    val (sNewDefs, sNewUpdates) = new_defs_and_updates(s, knownVars, lvsAfter)
-    val (restNewDefs, restNewUpdates) = new_defs_and_updates(rest, knownVars ++ sNewDefs, outLVs)
-    ((sNewDefs ++ restNewDefs) & outLVs, sNewUpdates ++ (restNewUpdates -- sNewDefs))
+    val (sNewDefs, sUpdates) = new_defs_and_updates(s, knownVars, lvsAfter)
+    val (restNewDefs, restUpdates) = new_defs_and_updates(rest, knownVars ++ sNewDefs, outLVs)
+    ((sNewDefs ++ restNewDefs) & outLVs, sUpdates ++ (restUpdates -- sNewDefs))
 
 def new_defs_and_updates(s: Stmt, knownVars: Set[String], outLVs: Set[String]): (Set[String], Set[String]) =
   s match
-    case _: (Stmt.Expr|Stmt.Assert|Stmt.Break|Stmt.Return) => (Set.empty, Set.empty)
+    case _: (Stmt.Annotation|Stmt.Expr|Stmt.Assert|Stmt.Break|Stmt.Return) => (Set.empty, Set.empty)
     case Stmt.Assign(tgt, _) =>
       val updatedLVs = getTargetVars(tgt)
       val newDes = updatedLVs -- knownVars

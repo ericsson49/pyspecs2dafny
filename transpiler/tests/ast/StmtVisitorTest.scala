@@ -1,7 +1,7 @@
 package ast
 
 import ast.Stmt.*
-import ast.TExpr.*
+import ast.TExpr.{Name, *}
 import org.antlr.v4.runtime.{CharStreams, CommonTokenStream, Token}
 import python3_grammar.Python3Lexer
 import utest.*
@@ -36,10 +36,16 @@ object StmtVisitorTest extends TestSuite {
       parseSuite("""
                 |  assert b
                 |""".stripMargin) ==> List(Assert((Name("b"))))
-      parseSuite("""
-                |    assert b
-                |    a
-                |""".stripMargin) ==> List(Assert((Name("b"))), Expr(Name("a")))
+      parseSuite(
+        """
+          |    assert b
+          |    a
+          |""".stripMargin) ==> List(Assert((Name("b"))), Expr(Name("a")))
+      parseSuite(
+        """
+          |    assert b
+          |    f()
+          |""".stripMargin) ==> List(Assert((Name("b"))), Expr(Call(Name("f"), List())))
       parseSuite("""
                 |  a = 1
                 |  assert a == 1
@@ -61,6 +67,47 @@ object StmtVisitorTest extends TestSuite {
               If(Name("a"),
                 List(Assert(Compare(Name("a"), List("!="), List(Num(0))))),
                 List(Assert(Compare(Name("a"), List("=="), List(Num(0))))))
+      parseCompoundStmt(
+        """if a:
+          |  assert a != 0
+          |elif b:
+          |  assert b != 0
+          |else:
+          |  assert a == 0
+          |""".stripMargin
+      ) ==>
+        If(Name("a"),
+          List(Assert(Compare(Name("a"), List("!="), List(Num(0))))),
+          List(
+            If(Name("b"),
+              List(Assert(Compare(Name("b"), List("!="), List(Num(0))))),
+              List(Assert(Compare(Name("a"), List("=="), List(Num(0)))))
+            )
+          )
+        )
+      parseCompoundStmt(
+        """if a:
+          |  assert a != 0
+          |elif b:
+          |  assert b != 0
+          |elif c:
+          |  assert c != 0
+          |else:
+          |  assert a == 0
+          |""".stripMargin
+      ) ==>
+        If(Name("a"),
+          List(Assert(Compare(Name("a"), List("!="), List(Num(0))))),
+          List(
+            If(Name("b"),
+              List(Assert(Compare(Name("b"), List("!="), List(Num(0))))),
+              List(If(Name("c"),
+                List(Assert(Compare(Name("c"), List("!="), List(Num(0))))),
+                List(Assert(Compare(Name("a"), List("=="), List(Num(0))))))
+              )
+            )
+          )
+        )
     }
     test("while") {
       val expected = While(Name("a"), List(Assign(Name("a"), BinOp(Name("a"), "-", Num(1)))))
@@ -87,6 +134,11 @@ object StmtVisitorTest extends TestSuite {
       parseCompoundStmt("for a in coll: assert a\n") ==> expected
       parseCompoundStmt("for a in coll: assert a;\n") ==> expected
     }
+    test("return") {
+      parseSmallStmt("return") ==> Return(None)
+      parseSmallStmt("return 1") ==> Return(Some(Num(1)))
+      parseSmallStmt("return a") ==> Return(Some(Name("a")))
+    }
     test("function def") {
       val p0 =
         """def test() -> None:
@@ -95,6 +147,13 @@ object StmtVisitorTest extends TestSuite {
       val expected0 = FunctionDef("test", List(Assert(Name("a"))))
       parseCompoundStmt(p0) ==> expected0
       parseStmt(p0) ==> List(expected0)
+      val p1 =
+        """
+          |def test() -> int:
+          |  return 1
+          |""".stripMargin
+      val expected1 = FunctionDef("test", List(Return(Some(Num(1)))))
+      parseCompoundStmt(p1) ==> expected1
     }
     test("class def") {
       parseCompoundStmt(

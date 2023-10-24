@@ -20,10 +20,10 @@ object TExprVisitorTest extends TestSuite {
       parseTExpr("a == 1") ==> Compare(Name("a"), List("=="), List(Num(1)))
     }
     test("tuples") {
-      parseTExpr("()") ==> Tuple(List.empty)
-      parseTExpr("(a,)") ==> Tuple(List(Name("a")))
-      parseTExpr("(a,b,)") ==> Tuple(List(Name("a"), Name("b")))
-      parseTExpr("(a,b)") ==> Tuple(List(Name("a"), Name("b")))
+      parseTExpr("()") ==> PyTuple(List.empty)
+      parseTExpr("(a,)") ==> PyTuple(List(Name("a")))
+      parseTExpr("(a,b,)") ==> PyTuple(List(Name("a"), Name("b")))
+      parseTExpr("(a,b)") ==> PyTuple(List(Name("a"), Name("b")))
     }
     test("list lit") {
       parseTExpr("[]") ==> PyList(List.empty)
@@ -53,6 +53,40 @@ object TExprVisitorTest extends TestSuite {
     }
     test("if expr") {
       parseTExpr("b if a else c") ==> IfExp(Name("a"), Name("b"), Name("c"))
+    }
+    test("lambda") {
+      parseTExpr("lambda a: a + 1") ==> Lambda(List("a"), BinOp(Name("a"), "+", Num(1)))
+      parseTExpr("lambda a, b: a + b") ==> Lambda(List("a", "b"), BinOp(Name("a"), "+", Name("b")))
+      parseTExpr("map(lambda a: a + 1, coll)") ==> Call(Name("map"), List(Lambda(List("a"), BinOp(Name("a"), "+", Num(1))), Name("coll")))
+    }
+    test("list comp") {
+      parseTExpr("[a * 2 for a in coll]") ==>
+        //Call(Name("list"), List(
+          GeneratorExp(BinOp(Name("a"), "*", Num(2)), Comprehension(Name("a"), Name("coll"), List()))
+        //))
+      parseTExpr("[a * 2 for a in coll if a > 0]") ==>
+        //Call(Name("list"), List(
+          GeneratorExp(BinOp(Name("a"), "*", Num(2)), Comprehension(Name("a"), Name("coll"), List(Compare(Name("a"), List(">"), List(Num(0))))))
+        //))
+    }
+    test("set comp") {
+      parseTExpr("{a * 2 for a in coll}") ==>
+        Call(Name("set"), List(GeneratorExp(BinOp(Name("a"), "*", Num(2)), Comprehension(Name("a"), Name("coll"), List()))))
+      parseTExpr("{a * 2 for a in coll if a > 0}") ==>
+        Call(Name("set"), List(GeneratorExp(BinOp(Name("a"), "*", Num(2)), Comprehension(Name("a"), Name("coll"), List(Compare(Name("a"), List(">"), List(Num(0))))))))
+    }
+    test("dict comp") {
+      parseTExpr("{a : a * 2 for a in coll}") ==>
+        Call(Name("dict"), List(GeneratorExp(PyTuple(List(Name("a"), BinOp(Name("a"), "*", Num(2)))), Comprehension(Name("a"), Name("coll"), List()))))
+      parseTExpr("{a : a * 2 for a in coll if a > 0}") ==>
+        Call(Name("dict"), List(GeneratorExp(PyTuple(List(Name("a"), BinOp(Name("a"), "*", Num(2)))), Comprehension(Name("a"), Name("coll"), List(Compare(Name("a"), List(">"), List(Num(0))))))))
+    }
+    test("call") {
+      parseTExpr("f()") ==> Call(Name("f"), List())
+      parseTExpr("f(a)") ==> Call(Name("f"), List(Name("a")))
+      parseTExpr("f(a, b)") ==> Call(Name("f"), List(Name("a"), Name("b")))
+      parseTExpr("f(k=1)") ==> Call(Name("f"), List(), List("k" -> Num(1)))
+      parseTExpr("f(k,k=1)") ==> Call(Name("f"), List(Name("k")), List("k" -> Num(1)))
     }
   }
 }
