@@ -1,14 +1,14 @@
 
-from myast import Stmt, Block, Expr, Comprehension
-from myast import Assert, ExprStmt, AssignStmt, AugAssign, AnnAssign, WhileStmt, ForStmt, IfStmt, Return, Break, Continue, Pass
-from myast import (NameConst, Num, Str, Bytes,
+from .myast import Stmt, Block, Expr, Comprehension
+from .myast import Assert, ExprStmt, AssignStmt, AugAssign, AnnAssign, WhileStmt, ForStmt, IfStmt, Return, Break, Continue, Pass
+from .myast import (NameConst, Num, Str, Bytes,
                    Name, Attribute, Subscript,
                    FuncCall, BinOp, UnaryOp, BoolOp, Compare,
                    PyTuple, PyList, PySet, PyDict,
                    GeneratorExpr, ListCompr, SetCompr, DictCompr,
                    IfExp, Lambda, Starred)
 from typing import Set, Mapping, Any, Sequence, Tuple, Callable
-from graph_utils import get_nodes, out_nodes
+from .graph_utils import get_nodes, out_nodes
 
 
 def decompose_expr(e: Expr) -> Expr:

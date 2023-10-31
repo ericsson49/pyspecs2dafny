@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence, Tuple, TypeVar
 
-from myast import Expr, Stmt, Block, Comprehension
-from myast import ExprStmt, VarDecl, AssignStmt, IfStmt, ForStmt, WhileStmt
-from myast import (Num, Name, Subscript, Attribute, FuncCall, GeneratorExpr, ListCompr, SetCompr, DictCompr,
+from .myast import Expr, Stmt, Block, Comprehension
+from .myast import ExprStmt, VarDecl, AssignStmt, IfStmt, ForStmt, WhileStmt
+from .myast import (Num, Name, Subscript, Attribute, FuncCall, GeneratorExpr, ListCompr, SetCompr, DictCompr,
                    PyTuple)
 
 

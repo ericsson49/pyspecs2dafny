@@ -2,15 +2,14 @@ import ast
 from typing import Sequence, Callable, Set, Tuple, TypeVar, Optional
 
 from dataclasses import dataclass
-import myast
-from myast import Stmt, Expr, Block, Comprehension
-from myast import (Assert, VarDecl, AnnAssign, AssignStmt, AugAssign, ExprStmt, IfStmt, WhileStmt, ForStmt, Return, Break,
+from .myast import Stmt, Expr, Block, Comprehension
+from .myast import (Assert, VarDecl, AnnAssign, AssignStmt, AugAssign, ExprStmt, IfStmt, WhileStmt, ForStmt, Return, Break,
                    Continue, Pass)
-from myast import NameConst, Num, Str,Bytes, Name, FuncCall, GeneratorExpr, ListCompr, SetCompr, \
+from .myast import NameConst, Num, Str,Bytes, Name, FuncCall, GeneratorExpr, ListCompr, SetCompr, \
     BinOp, Compare, BoolOp, UnaryOp, \
     Attribute, Subscript, PyTuple, PyList, PySet, PyDict, IfExp, Lambda, Starred
 
-from live_vars import live_var_st, calc_live_vars, lv_gen_kill_store_ctx
+from .live_vars import live_var_st, calc_live_vars, lv_gen_kill_store_ctx
 
 def new_defs_and_updates(s: Stmt|Block, known_vs: Set[str], out_lvs: Set[str]) -> Tuple[Set[str], Set[str]]:
     match s:
@@ -86,13 +85,14 @@ def infer_var_decls(s: Stmt|Block, known_vs: Set[str], out_lvs: Set[str]) -> Stm
             assert False, s
 
 
-from constr_solver import Term, Var, Atom
-from type_parser import get_base_type_env, TypingEnv
+from pynotole.constr_solver import Term, Var, Atom
+from pynotole.type_parser import get_base_type_env, TypingEnv
 
 def resolve_bin_op(left, op, right, expected):
     ...
 
 def gen_constraints(s: Stmt|Block, type_env: TypingEnv) -> Set[Tuple[str, Term, Term]]:
+    type_env = type_env.copy()
     cs = set()
 
     def add_eq(a: Term, b: Term):
@@ -132,6 +132,8 @@ def gen_constraints(s: Stmt|Block, type_env: TypingEnv) -> Set[Tuple[str, Term, 
     match s:
         case ExprStmt(_):
             pass
+        case VarDecl(tv, None, None):
+            type_env.update({tv: get_type_var(tv)})
         case VarDecl(tv, None, v):
             check_expr_term(v, get_type_var(tv))
         case AssignStmt(Name(t), v):
@@ -160,56 +162,5 @@ def gen_constraints(s: Stmt|Block, type_env: TypingEnv) -> Set[Tuple[str, Term, 
 
 #print(constraints)
 #print(simplify2_ext(constraints))
-
-
-from marko.ext.gfm import gfm
-from marko.block import FencedCode
-from glob import glob
-
-spec_dir = '/Users/avlasov/Documents/GitHub/consensus-specs/specs/'
-phases = ['phase0', 'altair', 'bellatrix', 'capella', 'deneb']
-
-from pyparser2 import parse_py2, parse_top_level
-from pyprint import print_st
-from simplify import simplify_assignments
-from type_parser import get_module_type_defs, get_base_type_env
-
-def parse_markup(data) -> Sequence[ast.stmt]:
-    md = gfm.parse(data)
-    res = []
-    for ch in md.children:
-        if isinstance(ch, FencedCode) and ch.lang == 'python':
-            code = ch.children[0].children
-            res.extend(ast.parse(code).body)
-    return res
-
-if __name__ == '__main__':
-    for phase in phases:
-        type_env = get_base_type_env()
-
-        phase_ast_defs = []
-        files = glob(f"{spec_dir}{phase}/*.md")
-        for fn in files:
-            print('---------')
-            print(fn[len(spec_dir):])
-            with open(fn, 'r') as f:
-                phase_ast_defs.extend(parse_markup(f.read()))
-
-            type_env.update(get_module_type_defs(phase_ast_defs))
-
-        for ast_def in phase_ast_defs:
-            tl = parse_top_level(ast_def)
-            match tl:
-                case ('func', fn, args, _, stmts):
-                    from ssa import mk_cfg, resolve, place_phi_funcs, split_var_ranges
-                    print('--')
-                    print(fn, [a for a, _ in args])
-                    cfg = mk_cfg(stmts)
-                    #infer_var_decls()
-                    stmts2 = simplify_assignments(stmts)
-                    code = split_var_ranges(stmts2)
-                    code2 = infer_var_decls(code, {a for a, _ in args}, set())
-                    #print_st(code2, '  ')
-                    print(gen_constraints(code2, type_env))
 
 

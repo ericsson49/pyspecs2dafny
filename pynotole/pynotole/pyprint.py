@@ -1,7 +1,7 @@
-from myast import Stmt, Expr, Block, Comprehension
-from myast import (Assert, VarDecl, AnnAssign, AssignStmt, AugAssign, ExprStmt, IfStmt, WhileStmt, ForStmt, Return, Break,
+from .myast import Stmt, Expr, Block, Comprehension
+from .myast import (Assert, VarDecl, AnnAssign, AssignStmt, AugAssign, ExprStmt, IfStmt, WhileStmt, ForStmt, Return, Break,
                    Continue, Pass)
-from myast import NameConst, Num, Str,Bytes, Name, FuncCall, GeneratorExpr, ListCompr, SetCompr, \
+from .myast import NameConst, Num, Str,Bytes, Name, FuncCall, GeneratorExpr, ListCompr, SetCompr, \
     BinOp, Compare, BoolOp, UnaryOp, \
     Attribute, Subscript, PyTuple, PyList, PySet, PyDict, IfExp, Lambda, Starred
 

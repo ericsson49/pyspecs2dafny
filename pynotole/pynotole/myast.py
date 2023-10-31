@@ -1,3 +1,4 @@
+import ast
 from dataclasses import dataclass
 from typing import Sequence, Set, Optional, Tuple, Dict
 
@@ -50,7 +51,7 @@ class Subscript(Expr):
 @dataclass(frozen=True)
 class BinOp(Expr):
     left: Expr
-    op: str
+    op: ast.operator
     right: Expr
 
 @dataclass(frozen=True)

@@ -1,103 +1,98 @@
+import ast
 from typing import Sequence, Callable, Set, Tuple, TypeVar, Optional, Mapping
 
 from dataclasses import dataclass
-from myast import Stmt, Expr, Block, Comprehension, Slice
-from myast import (Assert, VarDecl, AnnAssign, AssignStmt, AugAssign, ExprStmt, IfStmt, WhileStmt, ForStmt, Return, Break,
+from .myast import Stmt, Expr, Block, Comprehension, Slice
+from .myast import (Assert, VarDecl, AnnAssign, AssignStmt, AugAssign, ExprStmt, IfStmt, WhileStmt, ForStmt, Return, Break,
                    Continue, Pass)
-from myast import NameConst, Num, Str,Bytes, Name, Attribute, Subscript, FuncCall, GeneratorExpr, ListCompr, SetCompr, \
+from .myast import NameConst, Num, Str,Bytes, Name, Attribute, Subscript, FuncCall, GeneratorExpr, ListCompr, SetCompr, \
     BinOp, Compare, BoolOp, UnaryOp, \
     Attribute, Subscript, PyTuple, PyList, PySet, PyDict, IfExp, Lambda, Starred
 
-from type_parser import Cls, ClsTemplate, FuncSignature
-
-import unittest
-
-
-class TypeCheckTest(unittest.TestCase):
-    def test_backward_checking(self):
-        self.assertEqual(calculate_result_type(NameConst(None), {}), Cls("NoneType"))
-        self.assertEqual(calculate_result_type(NameConst(True), {}), Cls("bool"))
-        self.assertEqual(calculate_result_type(NameConst(False), {}), Cls("bool"))
-        self.assertEqual(calculate_result_type(Num(1), {}), Cls("int"))
-        self.assertEqual(calculate_result_type(Str("string"), {}), Cls("str"))
-        self.assertEqual(calculate_result_type(Bytes(b"111"), {}), Cls("bytes"))
-
-        self.assertEqual(calculate_result_type(Name("a"), {"a": Cls("A")}), Cls("A"))
-        #self.assertEqual(calculate_result_type(Name("a"), {}), ...)
-
-        cls_A = ClsTemplate([], {
-            "f": Cls("B"),
-            "__get_elem__": FuncSignature([], [("idx", Cls("int"), None)], Cls("C")),
-            "__get_slice__": FuncSignature([], [("idx", Cls("int"), None)], Cls("Sequence", (Cls("C"),)))
-        })
-        cls_A_gen = ClsTemplate(["T"], {"f": "T"})
-
-        self.assertEqual(calculate_result_type(Attribute(Name("a"), "f"), {"a": Cls("A"), "A": cls_A}), Cls("B"))
-        self.assertEqual(calculate_result_type(
-            Attribute(Name("a"), "f"),
-            {"a": Cls("A_gen", [Cls('int')]), "A_gen": cls_A_gen}), Cls("int"))
-
-        self.assertEqual(calculate_result_type(Subscript(Name("a"), Num(1)), {"a": Cls("A"), "A": cls_A}), Cls("C"))
-        self.assertEqual(calculate_result_type(
-            Subscript(Name("a"), (None,Num(3),None)), {"a": Cls("A"), "A": cls_A}), Cls("Sequence", (Cls("C"),)))
-
-
-class TypingCtx:
-    def __init__(self):
-        self.type_env = {}
-
-    def fresh(self) -> str:
-        ...
+from .type_parser import Cls, ClsTemplate, FuncSignature, TypingEnv, parse_type_lib
 
 
 BOTTOM = Cls("Nothing")
 
-def check_st(a: str|Cls, b: str|Cls):
-    ...
 
+class ConstraintStore:
+    def __init__(self):
+        pass
 
-def check_sub_typing(e: Expr, expected, type_env):
-    if isinstance(e, (NameConst, Num, Str, Bytes)):
-        check_st(expected, calculate_result_type(e, type_env))
-    elif isinstance(e, Name):
-        check_st(expected, calculate_result_type(e, type_env))
-    elif isinstance(e, Attribute):
-        vt = calculate_result_type(e.value, type_env)
-        assert isinstance(vt, Cls)
-        check_st(expected, resolve_attr(vt, e.attr, type_env))
-    elif isinstance(e, BinOp):
-        left_t = calculate_result_type(e.left, type_env)
-        right_t = calculate_result_type(e.right, type_env)
-        assert isinstance(left_t, Cls) and isinstance(right_t, Cls)
-        func_sig = resolve_attr(left_t, '__op__', type_env)
-        assert isinstance(func_sig, FuncSignature)
-        check_st(expected, check_func_app(func_sig, ...))
-    elif isinstance(e, UnaryOp):
-        value_t = calculate_result_type(e.value, type_env)
-        assert isinstance(value_t, Cls)
-        func_sig = resolve_attr(value_t, '__op__', type_env)
-        assert isinstance(func_sig, FuncSignature)
-        return check_st(expected, check_func_app(func_sig, ...))
-    elif isinstance(e, BoolOp):
-        for value in e.values:
-            check_sub_typing(value, Cls("bool"), type_env)
-        check_st(expected, Cls("bool"))
-    elif isinstance(e, Compare):
+    def add_sub_type(self, a: str|Cls, b: str|Cls):
         ...
-        check_st(expected, Cls("bool"))
+
+    def query_upper(self, v: str) -> Cls|str:
+        ...
 
 
+def get_super_class(t_env: TypingEnv, cls: str) -> str|None:
+    match cls:
+        case "object":
+            return None
+        case "int" | "str":
+            return "object"
+        case "bool":
+            return "int"
+        case _:
+            assert False
 
-def check_func_app(sig: FuncSignature, args: Sequence[Cls | str]) -> Cls | str:
-    ...
+def get_ancestor_classes(t_env: TypingEnv, cls: str) -> Set[str]:
+    super_cls = get_super_class(t_env, cls)
+    if super_cls is None:
+        return {cls}
+    else:
+        return {cls} | get_ancestor_classes(t_env, super_cls)
+
+def is_subclass(t_env: TypingEnv, a: Cls, b: Cls) -> bool:
+    return b.name in get_ancestor_classes(t_env, a.name)
 
 
-def resolve_attr(c: Cls, attr: str, type_env: Mapping[str, Cls]) -> Cls | FuncSignature:
-    cls_info = type_env[c.name]
-    assert isinstance(cls_info, ClsTemplate)
-    return cls_info.resolve_attribute(c.tparams, attr)
+def check_st(a: str|Cls, b: str|Cls, cs: ConstraintStore):
+    if cs:
+        cs.add_sub_type(a, b)
 
-def calculate_result_type(e: Expr, type_env: Mapping[str, Cls]) -> Cls | str:
+
+def check_sub_typing(e: Expr, expected, type_env, cs: ConstraintStore):
+    match e:
+        case NameConst() | Num() | Str() | Bytes():
+            result = calculate_result_type(e, type_env)
+        case Name():
+            result = calculate_result_type(e, type_env)
+        case Attribute() as e:
+            vt = calculate_result_type(e.value, type_env)
+            assert isinstance(vt, Cls)
+            result = type_env.resolve_attr(vt, e.attr)
+            assert isinstance(result, Cls)
+        case BinOp() | UnaryOp() as e:
+            result = calculate_result_type(e, type_env, cs)
+        case BoolOp() as e:
+            for value in e.values:
+                check_sub_typing(value, Cls("bool"), type_env, cs)
+            result = Cls("bool")
+        case Compare() as e:
+            ...
+            result = Cls("bool")
+        case _:
+            assert False
+    check_st(expected, result, cs)
+
+
+def check_func_app(sig: FuncSignature, args: Sequence[Cls | str], cs: ConstraintStore=None) -> Cls | str:
+    assert len(sig.args) == len(args)
+    for (_, param_type, _), arg in zip(sig.args, args):
+        check_st(arg, param_type, cs)
+    return sig.ret
+
+
+def map_operator_to_str(op: ast.operator) -> str:
+    op_map = {ast.Add: "add", ast.Sub: "sub"}
+    if op.__class__ in op_map:
+        return op_map[op.__class__]
+    else:
+        assert False
+
+def calculate_result_type(e: Expr, type_env: TypingEnv, cs: ConstraintStore=None) -> Cls | str:
     match e:
         case NameConst(None):
             return Cls("NoneType")
@@ -110,40 +105,57 @@ def calculate_result_type(e: Expr, type_env: Mapping[str, Cls]) -> Cls | str:
         case Bytes():
             return Cls("bytes")
         case Name(v):
-            return type_env[v]
+            return type_env.resolve_var(v)
         case Attribute(v, attr):
-            vt = calculate_result_type(v, type_env)
+            vt = calculate_result_type(v, type_env, cs)
             assert isinstance(vt, Cls)
-            return resolve_attr(vt, attr, type_env)
+            return type_env.resolve_attr(vt, attr)
         case Subscript(v, (l,u,s)):
-            vt = calculate_result_type(v, type_env)
+            vt = calculate_result_type(v, type_env, cs)
             assert isinstance(vt, Cls)
-            func_sig: FuncSignature = resolve_attr(vt, '__get_slice__', type_env)
+            func_sig: FuncSignature = type_env.resolve_attr(vt, '__get_slice__')
             return func_sig.ret
         case Subscript(v, idx):
-            vt = calculate_result_type(v, type_env)
+            vt = calculate_result_type(v, type_env, cs)
             assert isinstance(vt, Cls)
-            func_sig: FuncSignature = resolve_attr(vt, '__get_elem__', type_env)
+            func_sig: FuncSignature = type_env.resolve_attr(vt, '__get_elem__')
             return func_sig.ret
         case BinOp(left, op, right):
-            left_ = calculate_result_type(left, type_env)
-            right_ = calculate_result_type(right, type_env)
+            left_ = calculate_result_type(left, type_env, cs)
+            right_ = calculate_result_type(right, type_env, cs)
             if left_ is str or right_ is str:
                 return BOTTOM
             else:
-                if right_ > left_:
-                    sig, args = resolve_attr(right_, f"__r{op}__", type_env), [right_, left_]
-                else:
-                    sig, args = resolve_attr(left_, f"__{op}__", type_env), [left_, right_]
-                return check_func_app(sig, args)
+                op = map_operator_to_str(op)
+                sig = None
+                if is_subclass(type_env, right_, left_) and not is_subclass(type_env, left_, right_):
+                    sig, args = type_env.try_resolve_attr(right_, f"__r{op}__"), [right_, left_]
+                if sig is None:
+                    sig, args = type_env.resolve_attr(left_, f"__{op}__"), [left_, right_]
+                return check_func_app(sig, args, cs)
+        case Compare(left, ops, comparators):
+            return Cls("bool")
         case BoolOp(op, args):
             # todo check args
+            return Cls("bool")
+        case UnaryOp(ast.Not(), value):
             return Cls("bool")
         case FuncCall(Name(fname), args, kwargs):
             func = type_env[fname]
             assert isinstance(func, FuncSignature)
-            return check_func_app(func, args)
+            return check_func_app(func, args, cs)
         case PyList(elems):
-            elems_ = [calculate_result_type(elem, type_env) for elem in elems]
-            return check_func_app()
+            elems_ = {calculate_result_type(elem, type_env, cs) for elem in elems}
+            if len(elems_) == 1:
+                return Cls("list", tuple(elems_))
+            else:
+                assert False
+        case PySet(elems):
+            elems_ = {calculate_result_type(elem, type_env, cs) for elem in elems}
+            if len(elems_) == 1:
+                return Cls("set", tuple(elems_))
+            else:
+                assert False
+        case _:
+            assert False, e
 

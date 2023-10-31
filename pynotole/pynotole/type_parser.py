@@ -5,101 +5,15 @@ from typing import Sequence, Any, Tuple, Optional, Set, Mapping
 
 import unittest
 
-import myast
+from .typing import Cls, ClsTemplate, FuncSignature, TypingEnv
+from . import myast
 import ast
 
-
-@dataclass(eq=True,frozen=True)
-class ClsTemplate:
-    type_vars: Sequence[str]
-    attrs: Mapping[str, FuncSignature|Cls|str]
-
-    def resolve_attribute(self, type_params: Sequence[Cls], attr):
-        assert len(self.type_vars) == len(type_params)
-        tv_map = dict(zip(self.type_vars, type_params))
-
-        def replace_type_vars(c: FuncSignature|Cls|str):
-            match c:
-                case str(tv):
-                    return tv_map[tv]
-                case Cls(cname, tparams):
-                    tparams_ = tuple(map(replace_type_vars, tparams))
-                    return Cls(cname, tparams_)
-                case FuncSignature([], args, ret):
-                    args_ = [(a, replace_type_vars(t), d) for a,t,d in args]
-                    ret_ = replace_type_vars(ret)
-                    return FuncSignature([], args_, ret_)
-                case _:
-                    assert False
-        return replace_type_vars(self.attrs[attr])
-
-@dataclass(eq=True,frozen=True)
-class Cls:
-    name: str
-    tparams: Sequence[Cls|str] = ()
-
-
-@dataclass(eq=True,frozen=True)
-class FuncSignature:
-    type_vars: Sequence[str]
-    args: Sequence[Tuple[str, Cls | str, Optional[str]]]
-    ret: Cls | str
-
-    def matches_call(self, pos_arg_count, kwd_args: Sequence[str]) -> bool:
-        param_names = [n for n, _, _ in self.args]
-        args_with_defaults = {n for n, _, dv in self.args if dv is not None}
-        if len(self.args) < pos_arg_count:
-            return False
-        pos_matched_args = set(param_names[:pos_arg_count])
-        rest_args = set(param_names).difference(pos_matched_args)
-        if set(kwd_args).difference(rest_args):
-            return False
-        rest_args = rest_args.difference(kwd_args)
-        if rest_args.difference(args_with_defaults):
-             return False
-        return True
-
-
-def _module_to_expr(node: ast.Module) -> ast.expr:
-    assert len(node.body) == 1
-    assert isinstance(node.body[0], ast.Expr)
-    return node.body[0].value
-
-
-class TypeParserTest(unittest.TestCase):
-    def test(self):
-        def helper(s: str):
-            return parse_type(_module_to_expr(ast.parse(s)))
-        self.assertEqual(helper('None'), Cls("NoneType"))
-        self.assertEqual(helper('A'), Cls("A"))
-        self.assertEqual(helper('a.A'), Cls("a.A"))
-        self.assertEqual(helper('a.b.A'), Cls("a.b.A"))
-        self.assertEqual(helper('A[B]'), Cls("A", (Cls("B"),)))
-        self.assertEqual(helper('A[B,C]'), Cls("A", (Cls("B"),Cls("C"))))
-        self.assertEqual(helper('List[A,1*2]'), Cls("List", (Cls("A"),)))
-        self.assertEqual(helper('Vector[A,1*2]'), Cls("Vector", (Cls("A"),)))
-        self.assertEqual(helper('Bytelist[1*2]'), Cls("Bytelist", ()))
-        self.assertEqual(helper('Bytevector[1*2]'), Cls("Bytevector", ()))
-        self.assertEqual(helper('Bitlist[1*2]'), Cls("Bitlist", ()))
-        self.assertEqual(helper('Bitvector[1*2]'), Cls("Bitvector", ()))
-
-        self.assertEqual(parse_type(_module_to_expr(ast.parse("T")), {"T"}), "T")
-        self.assertEqual(parse_type(_module_to_expr(ast.parse("Cls[T]")), {"T"}), Cls("Cls", ("T",)))
-
-    def test_parse_typelib_func(self):
-        fn, sig = parse_type_lib("def len[T](coll: Collection[T]) -> int: ...")[0]
-        self.assertEqual(fn, "len")
-        self.assertEqual(sig, FuncSignature(["T"], [("coll", Cls("Collection", ("T",)), None)], Cls("int")))
-
-        self.assertEqual(sig.matches_call(1, set()), True)
-        self.assertEqual(sig.matches_call(0, {"coll"}), True)
-        self.assertEqual(sig.matches_call(0, set()), False)
-        self.assertEqual(sig.matches_call(2, set()), False)
-        self.assertEqual(sig.matches_call(1, {"wrong"}), False)
-        self.assertEqual(sig.matches_call(0, {"wrong"}), False)
-        self.assertEqual(sig.matches_call(1, {"coll"}), False)
-        self.assertEqual(sig.matches_call(1, {"coll", "wrong"}), False)
-        self.assertEqual(sig.matches_call(0, {"coll", "wrong"}), False)
+def str_to_type(type_expr: str, type_vars: Set[str] = frozenset()):
+    body = ast.parse(type_expr).body
+    assert len(body) == 1
+    assert isinstance(body[0], ast.Expr)
+    return parse_type(body[0].value, type_vars)
 
 def parse_type(node: ast.expr, type_vars: Set[str] = frozenset()):
     def resolve_name(v: ast.expr) -> str:
@@ -133,18 +47,23 @@ def parse_type(node: ast.expr, type_vars: Set[str] = frozenset()):
             assert False, f"{node}"
 
 pylib = """
+class int(object):
+    def __add__(self, other: int) -> int: ...
+
+class bool(int):
+    ...
+
+class str(object):
+    ...
+
+class Sequence[T](object):
+    ...
+
+class list[T](Sequence[T]):
+    ...
+
 def len[T](coll: Collection[T]) -> int: ...
 """
-
-class TypingEnv:
-    def __init__(self, names=None):
-        self.names = names or {}
-
-    def resolve_func(self, name) -> Sequence[FuncSignature]:
-        return self.names[name]
-
-    def update(self, names):
-        self.names |= names
 
 def get_base_type_env() -> TypingEnv:
     res = {}
@@ -154,6 +73,9 @@ def get_base_type_env() -> TypingEnv:
                 if n not in res:
                     res[n] = []
                 res[n].append(tl)
+            case ClsTemplate():
+                assert n not in res
+                res[n] = tl
             case _:
                 assert False
     return TypingEnv(res)
@@ -171,14 +93,61 @@ def parse_tl_func_def(func_def: ast.FunctionDef) -> (str, FuncSignature):
     fname = func_def.name
     tvars = [tp.name for tp in func_def.type_params]
     args = [(arg.arg, parse_type(arg.annotation, set(tvars)), None) for arg in func_def.args.args]
-    return fname, FuncSignature(tvars, args, parse_type(func_def.returns))
+    return fname, FuncSignature(tvars, args, parse_type(func_def.returns, set(tvars)))
+
+
+def parse_class_def(class_def: ast.ClassDef) -> (str, ClsTemplate):
+    cls_name = class_def.name
+    assert len(class_def.bases) <= 1
+    type_params = [tp.name for tp in class_def.type_params]
+    base_class = parse_type(class_def.bases[0], set(type_params)) if len(class_def.bases) == 1 else Cls("object")
+    attrs = {}
+    for field in class_def.body:
+        match field:
+            case ast.Pass():
+                continue
+            case ast.Expr(ast.Constant(c)) if c is Ellipsis:
+                continue
+            case ast.AnnAssign(ast.Name(fn, _), typ, init):
+                attrs[fn] = parse_type(typ, set(type_params))
+            case ast.FunctionDef() as meth:
+                attr_name = meth.name
+                args = meth.args.args
+                assert len(args) >= 1
+                assert args[0].arg == "self"
+                def parse_arg(i, arg):
+                    if i != 0:
+                        assert arg.annotation is not None
+                        anno = arg.annotation
+                    elif arg.annotation is None:
+                        anno = ast.Name(cls_name, ast.Load())
+                        if len(type_params) == 1:
+                            anno = ast.Subscript(
+                                ast.Name(cls_name, ast.Load()),
+                                ast.Name(type_params[0], ast.Load()),
+                                ast.Load()
+                            )
+                        elif len(type_params) > 1:
+                            tps = [ast.Name(tp, ast.Load()) for tp in type_params]
+                            anno = ast.Subscript(
+                                ast.Name(cls_name, ast.Load()),
+                                ast.Tuple(tps, ast.Load()),
+                                ast.Load())
+                    else:
+                        anno = arg.annotation
+                    return (arg.arg, parse_type(anno, set(type_params)), None)
+
+                args = [parse_arg(i, arg) for i, arg in enumerate(args)]
+                ret = parse_type(meth.returns, set(type_params)) if meth.returns is not None else parse_type(ast.Constant(None))
+                attrs[attr_name] = FuncSignature([], args, ret)
+            case _:
+                assert False
+    return cls_name, ClsTemplate(type_params, base_class, attrs)
+
 
 
 def parse_type_lib(tlib):
     res = []
-
-    def parse_class_def(class_def: ast.ClassDef):
-        ...
 
     for mod in ast.parse(tlib).body:
         match mod:

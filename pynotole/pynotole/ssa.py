@@ -2,10 +2,10 @@
 from dataclasses import dataclass
 from typing import Any, Sequence, Set, Optional, Tuple, Mapping
 import ast
-import myast
+from . import myast
 
-from live_vars import calc_live_vars, lv_gen_kill_store_ctx, deconstruct2
-from graph_utils import in_nodes, out_nodes, get_nodes, dom_frontier
+from .live_vars import calc_live_vars, lv_gen_kill_store_ctx, deconstruct2
+from .graph_utils import in_nodes, out_nodes, get_nodes, dom_frontier
 
 
 def _mk_cfg(idx, s: myast.Stmt|myast.Block, ret, loop, nxt, acc):

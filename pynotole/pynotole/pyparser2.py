@@ -1,9 +1,10 @@
 import ast
-import myast
+
+from . import myast
 
 from typing import Tuple
 
-from type_parser import parse_type, Cls
+from .type_parser import parse_type, Cls
 
 def parse_name(name: ast.Name) -> str:
     return name.id
@@ -17,6 +18,8 @@ def parse_expr(node: ast.expr) -> myast.Expr:
             return myast.Str(node.value)
         elif isinstance(node.value, bytes):
             return myast.Bytes(node.value)
+        elif isinstance(node.value, bool):
+            return myast.NameConst(node.value)
         elif isinstance(node.value, int):
             return myast.Num(int(node.value))
         elif node.value is Ellipsis:
