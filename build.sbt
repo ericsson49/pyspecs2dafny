@@ -17,6 +17,6 @@ lazy val transpiler = project
     name := "Py2Dafny",
     libraryDependencies += "io.github.java-diff-utils" % "java-diff-utils" % "4.12",
     Compile / scalaSource := baseDirectory.value / "src",
-    mainClass in (Compile,run) := Some("onotole_scala.main")
+    Compile / run / mainClass := Some("onotole_scala.main")
   )
 
