@@ -410,6 +410,13 @@ public interface Python3Visitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitListLit(Python3Parser.ListLitContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code ListComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitListComp(Python3Parser.ListCompContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code DictLit}
 	 * labeled alternative in {@link Python3Parser#atom}.
 	 * @param ctx the parse tree
@@ -417,12 +424,26 @@ public interface Python3Visitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitDictLit(Python3Parser.DictLitContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code DictComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDictComp(Python3Parser.DictCompContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code SetLit}
 	 * labeled alternative in {@link Python3Parser#atom}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitSetLit(Python3Parser.SetLitContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code SetComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSetComp(Python3Parser.SetCompContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code Name}
 	 * labeled alternative in {@link Python3Parser#atom}.
@@ -530,33 +551,43 @@ public interface Python3Visitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitArglist(Python3Parser.ArglistContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link Python3Parser#argument}.
+	 * Visit a parse tree produced by the {@code TestArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitArgument(Python3Parser.ArgumentContext ctx);
+	T visitTestArg(Python3Parser.TestArgContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link Python3Parser#comp_iter}.
+	 * Visit a parse tree produced by the {@code GeneratorArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitComp_iter(Python3Parser.Comp_iterContext ctx);
+	T visitGeneratorArg(Python3Parser.GeneratorArgContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link Python3Parser#sync_comp_for}.
+	 * Visit a parse tree produced by the {@code NamedArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSync_comp_for(Python3Parser.Sync_comp_forContext ctx);
+	T visitNamedArg(Python3Parser.NamedArgContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code StarArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitStarArg(Python3Parser.StarArgContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link Python3Parser#name_list}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitName_list(Python3Parser.Name_listContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link Python3Parser#comp_for}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitComp_for(Python3Parser.Comp_forContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link Python3Parser#comp_if}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitComp_if(Python3Parser.Comp_ifContext ctx);
 }

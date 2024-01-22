@@ -737,6 +737,18 @@ public class Python3BaseListener implements Python3Listener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterListComp(Python3Parser.ListCompContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitListComp(Python3Parser.ListCompContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterDictLit(Python3Parser.DictLitContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -749,6 +761,18 @@ public class Python3BaseListener implements Python3Listener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterDictComp(Python3Parser.DictCompContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDictComp(Python3Parser.DictCompContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterSetLit(Python3Parser.SetLitContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -756,6 +780,18 @@ public class Python3BaseListener implements Python3Listener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitSetLit(Python3Parser.SetLitContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSetComp(Python3Parser.SetCompContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSetComp(Python3Parser.SetCompContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -953,37 +989,61 @@ public class Python3BaseListener implements Python3Listener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterArgument(Python3Parser.ArgumentContext ctx) { }
+	@Override public void enterTestArg(Python3Parser.TestArgContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitArgument(Python3Parser.ArgumentContext ctx) { }
+	@Override public void exitTestArg(Python3Parser.TestArgContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterComp_iter(Python3Parser.Comp_iterContext ctx) { }
+	@Override public void enterGeneratorArg(Python3Parser.GeneratorArgContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitComp_iter(Python3Parser.Comp_iterContext ctx) { }
+	@Override public void exitGeneratorArg(Python3Parser.GeneratorArgContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterSync_comp_for(Python3Parser.Sync_comp_forContext ctx) { }
+	@Override public void enterNamedArg(Python3Parser.NamedArgContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitSync_comp_for(Python3Parser.Sync_comp_forContext ctx) { }
+	@Override public void exitNamedArg(Python3Parser.NamedArgContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterStarArg(Python3Parser.StarArgContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitStarArg(Python3Parser.StarArgContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterName_list(Python3Parser.Name_listContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitName_list(Python3Parser.Name_listContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -996,18 +1056,6 @@ public class Python3BaseListener implements Python3Listener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitComp_for(Python3Parser.Comp_forContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterComp_if(Python3Parser.Comp_ifContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitComp_if(Python3Parser.Comp_ifContext ctx) { }
 
 	/**
 	 * {@inheritDoc}

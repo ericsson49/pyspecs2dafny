@@ -686,6 +686,18 @@ public interface Python3Listener extends ParseTreeListener {
 	 */
 	void exitListLit(Python3Parser.ListLitContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code ListComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterListComp(Python3Parser.ListCompContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ListComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitListComp(Python3Parser.ListCompContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code DictLit}
 	 * labeled alternative in {@link Python3Parser#atom}.
 	 * @param ctx the parse tree
@@ -698,6 +710,18 @@ public interface Python3Listener extends ParseTreeListener {
 	 */
 	void exitDictLit(Python3Parser.DictLitContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code DictComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterDictComp(Python3Parser.DictCompContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code DictComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitDictComp(Python3Parser.DictCompContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code SetLit}
 	 * labeled alternative in {@link Python3Parser#atom}.
 	 * @param ctx the parse tree
@@ -709,6 +733,18 @@ public interface Python3Listener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitSetLit(Python3Parser.SetLitContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code SetComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void enterSetComp(Python3Parser.SetCompContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code SetComp}
+	 * labeled alternative in {@link Python3Parser#atom}.
+	 * @param ctx the parse tree
+	 */
+	void exitSetComp(Python3Parser.SetCompContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code Name}
 	 * labeled alternative in {@link Python3Parser#atom}.
@@ -890,35 +926,63 @@ public interface Python3Listener extends ParseTreeListener {
 	 */
 	void exitArglist(Python3Parser.ArglistContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link Python3Parser#argument}.
+	 * Enter a parse tree produced by the {@code TestArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 */
-	void enterArgument(Python3Parser.ArgumentContext ctx);
+	void enterTestArg(Python3Parser.TestArgContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link Python3Parser#argument}.
+	 * Exit a parse tree produced by the {@code TestArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 */
-	void exitArgument(Python3Parser.ArgumentContext ctx);
+	void exitTestArg(Python3Parser.TestArgContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link Python3Parser#comp_iter}.
+	 * Enter a parse tree produced by the {@code GeneratorArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 */
-	void enterComp_iter(Python3Parser.Comp_iterContext ctx);
+	void enterGeneratorArg(Python3Parser.GeneratorArgContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link Python3Parser#comp_iter}.
+	 * Exit a parse tree produced by the {@code GeneratorArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 */
-	void exitComp_iter(Python3Parser.Comp_iterContext ctx);
+	void exitGeneratorArg(Python3Parser.GeneratorArgContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link Python3Parser#sync_comp_for}.
+	 * Enter a parse tree produced by the {@code NamedArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 */
-	void enterSync_comp_for(Python3Parser.Sync_comp_forContext ctx);
+	void enterNamedArg(Python3Parser.NamedArgContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link Python3Parser#sync_comp_for}.
+	 * Exit a parse tree produced by the {@code NamedArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
 	 * @param ctx the parse tree
 	 */
-	void exitSync_comp_for(Python3Parser.Sync_comp_forContext ctx);
+	void exitNamedArg(Python3Parser.NamedArgContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code StarArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
+	 * @param ctx the parse tree
+	 */
+	void enterStarArg(Python3Parser.StarArgContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code StarArg}
+	 * labeled alternative in {@link Python3Parser#argument}.
+	 * @param ctx the parse tree
+	 */
+	void exitStarArg(Python3Parser.StarArgContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link Python3Parser#name_list}.
+	 * @param ctx the parse tree
+	 */
+	void enterName_list(Python3Parser.Name_listContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link Python3Parser#name_list}.
+	 * @param ctx the parse tree
+	 */
+	void exitName_list(Python3Parser.Name_listContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link Python3Parser#comp_for}.
 	 * @param ctx the parse tree
@@ -929,14 +993,4 @@ public interface Python3Listener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitComp_for(Python3Parser.Comp_forContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link Python3Parser#comp_if}.
-	 * @param ctx the parse tree
-	 */
-	void enterComp_if(Python3Parser.Comp_ifContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link Python3Parser#comp_if}.
-	 * @param ctx the parse tree
-	 */
-	void exitComp_if(Python3Parser.Comp_ifContext ctx);
 }
