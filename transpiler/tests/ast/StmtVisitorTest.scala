@@ -144,7 +144,7 @@ object StmtVisitorTest extends TestSuite {
         """def test() -> None:
           |  assert a
           |""".stripMargin
-      val expected0 = FunctionDef("test", List(Assert(Name("a"))))
+      val expected0 = FunctionDef("test", List(), List(Assert(Name("a"))), None)
       parseCompoundStmt(p0) ==> expected0
       parseStmt(p0) ==> List(expected0)
       val p1 =
@@ -152,7 +152,7 @@ object StmtVisitorTest extends TestSuite {
           |def test() -> int:
           |  return 1
           |""".stripMargin
-      val expected1 = FunctionDef("test", List(Return(Some(Num(1)))))
+      val expected1 = FunctionDef("test", List(), List(Return(Some(Num(1)))), None)
       parseCompoundStmt(p1) ==> expected1
     }
     test("class def") {
