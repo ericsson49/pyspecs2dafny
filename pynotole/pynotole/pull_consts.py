@@ -68,12 +68,12 @@ class PullConsts:
         consts = {}
         blocks_ = []
         for block in blocks:
-            block_ = []
-            for st in block:
+            stmts_ = []
+            for st in block.stmts:
                 consts_, st_ = self.proc_stmt(st)
                 consts |= consts_
-                block_.append(st_)
-            blocks_.append(block_)
+                stmts_.append(st_)
+            blocks_.append(myast.Block(stmts_))
 
         return consts, builder(blocks_)
 
@@ -87,6 +87,14 @@ class PullConsts:
             case myast.AssignStmt(myast.Name() as tgt, value, new_def):
                 consts_, value_ = self.proc_expr(value)
                 return consts | consts_, myast.AssignStmt(tgt, value_, new_def)
+            case myast.IfStmt(test, body, orelse):
+                consts_, test_ = self.proc_expr(test)
+                return consts | consts_, myast.IfStmt(test_, body, orelse)
+            case myast.WhileStmt(test, body):
+                consts_, test_ = self.proc_expr(test)
+                return consts | consts_, myast.WhileStmt(test_, body)
+            case myast.Pass() | myast.Continue() | myast.Break() as st:
+                return consts, st
             case _:
                 assert False
 
