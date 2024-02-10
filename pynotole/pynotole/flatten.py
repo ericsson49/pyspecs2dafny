@@ -1,33 +1,10 @@
-from typing import Any, Sequence, Tuple
+from typing import Sequence, Tuple
 from toolz import mapcat
+
+from .deconstruct_utlils import std_expr_destruct, std_stmt_deconstruct
 from . import myast
 
-
-def _destruct(e: myast.Expr) -> Tuple[Sequence[myast.Expr], Any]:
-    match e:
-        case myast.NameConst() | myast.Num() | myast.Name()  as e:
-            return [], lambda _: e
-        case myast.Lambda() as e:
-            return [], lambda _: e
-        case myast.Attribute(v, attr):
-            return [v], lambda vs: myast.Attribute(vs[0], attr)
-        case myast.Subscript(v, myast.Expr() as slice):
-            return [v, slice], lambda vs: myast.Subscript(vs[0], vs[1])
-        case myast.BinOp(left, op, right):
-            return [left, right], lambda vs: myast.BinOp(vs[0], op, vs[1])
-        case myast.BoolOp(op, values):
-            return values, lambda vs: myast.BoolOp(op, vs)
-        case myast.Compare(left, [op], [right]):
-            return [left, right], lambda vs: myast.Compare(vs[0], [op], [vs[1]])
-        case myast.UnaryOp(op, operand):
-            return [operand], lambda vs: myast.UnaryOp(op, vs[0])
-        case myast.FuncCall(func, args, kwds):
-            arg_names = [k for k,_ in kwds]
-            return ([func] + args + [v for _, v in kwds],
-                    lambda args_: myast.FuncCall(args_[0], args_[1:len(args)+1], list(zip(arg_names, args_[len(args)+1:]))))
-        case _:
-            assert False, e
-
+_deconstruct = std_expr_destruct
 
 class FlattenExprs:
     def __init__(self):
@@ -43,9 +20,6 @@ class FlattenExprs:
         self._var_num += 1
         return f"t{num}"
 
-    def destruct(self, e) -> Tuple[Sequence[myast.Expr], Any]:
-        return _destruct(e)
-
     def proc_assgns(self, assgns: Sequence[Tuple[str, myast.Expr]]) -> Sequence[Tuple[str, myast.Expr]]:
         res = []
         for v,e in assgns:
@@ -55,7 +29,7 @@ class FlattenExprs:
         return res
 
     def proc_expr(self, expr: myast.Expr) -> Tuple[Sequence[Tuple[str, myast.Expr]], myast.Expr]:
-        exprs, builder = self.destruct(expr)
+        exprs, builder = _deconstruct(expr)
         assgns = []
         exprs_ = []
         for e in exprs:
@@ -76,9 +50,17 @@ class FlattenExprs:
         else:
             return self.proc_assgns(assgns), builder(exprs_)
 
+    def proc_substmts(self, s: myast.Stmt) -> myast.Stmt:
+        blocks, builder = std_stmt_deconstruct(s)
+        def proc_block(b: myast.Block) -> myast.Block:
+            return myast.Block(list(mapcat(self.proc_stmt, b.stmts)))
+
+        return builder([proc_block(b) for b in blocks])
+
     def proc_stmt(self, s: myast.Stmt) -> Sequence[myast.Stmt]:
         def assgns_to_stmts(assgns: Sequence[Tuple[str, myast.Expr]]) -> list[myast.AssignStmt]:
             return [myast.AssignStmt(myast.Name(v), e, True) for v, e in assgns]
+        s = self.proc_substmts(s)
         match s:
             case myast.ExprStmt(value):
                 assgns, value_ = self.proc_expr(value)
@@ -93,13 +75,10 @@ class FlattenExprs:
                 return assgns_to_stmts(assgns) + [myast.AnnAssign(tgt, anno, value_)]
             case myast.IfStmt(test, body, orelse):
                 t_assgns, t_ = self.proc_expr(test)
-                body_ = myast.Block(list(mapcat(self.proc_stmt, body.stmts)))
-                orelse_ = myast.Block(list(mapcat(self.proc_stmt, orelse.stmts)))
-                return assgns_to_stmts(t_assgns) + [myast.IfStmt(t_, body_, orelse_)]
+                return assgns_to_stmts(t_assgns) + [myast.IfStmt(t_, body, orelse)]
             case myast.ForStmt(tgt, iter, body):
                 it_assgns, it_ = self.proc_expr(iter)
-                body_ = myast.Block(list(mapcat(self.proc_stmt, body.stmts)))
-                return assgns_to_stmts(it_assgns) + [myast.ForStmt(tgt, it_, body_)]
+                return assgns_to_stmts(it_assgns) + [myast.ForStmt(tgt, it_, body)]
             case myast.Return(None) as ret:
                 return ret
             case myast.Return(value):
