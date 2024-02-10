@@ -23,6 +23,8 @@ def std_expr_destruct(e: myast.Expr) -> Tuple[Sequence[myast.Expr], Any]:
             arg_names = [k for k,_ in kwds]
             return ([func] + args + [v for _, v in kwds],
                     lambda args_: myast.FuncCall(args_[0], args_[1:len(args)+1], list(zip(arg_names, args_[len(args)+1:]))))
+        case myast.PyTuple(elts):
+            return elts, lambda vs: myast.PyTuple(vs)
         case _:
             assert False, e
 
