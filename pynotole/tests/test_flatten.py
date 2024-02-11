@@ -13,23 +13,22 @@ class FlattenTest(unittest.TestCase):
 
         e = parse("f(g(1),2)")
         assgns, e1 = flattener.proc_expr(e)
-        self.assertEqual(len(assgns), 1)
-        v, e2 = assgns[0]
+        (v, e2), = assgns
         self.assertEqual(e2, parse("g(1)"))
         self.assertEqual(e1, parse(f"f({v}, 2)"))
 
         e = parse("f(g(h(1)),2)")
         assgns, e1 = flattener.proc_expr(e)
-        self.assertEqual(len(assgns), 2)
-        v3, e3 = assgns[0]
-        v2, e2 = assgns[1]
+        (v3, e3), (v2, e2) = assgns
         self.assertEqual(e1, parse(f"f({v2},2)"))
         self.assertEqual(e2, parse(f"g({v3})"))
         self.assertEqual(e3, parse("h(1)"))
 
         e = parse("f(g(1).a)")
         assgns, e1 = flattener.proc_expr(e)
-        pass
+        (v, e2), = list(assgns)
+        self.assertEqual(e1, parse(f"f({v}.a)"))
+        self.assertEqual(e2, parse('g(1)'))
 
     def test_flatten_stmt(self):
         def parse(code: str) -> myast.Stmt:
