@@ -21,8 +21,7 @@ class PullConstTest(unittest.TestCase):
 
         expr = as_expr("pkg.Cls()")
         consts, expr_ = puller.proc_expr(expr)
-        self.assertEqual(len(consts), 1)
-        v, e2 = list(consts.items())[0]
+        (v, e2), = list(consts.items())
         self.assertEqual(e2, as_expr('pkg.Cls'))
         self.assertEqual(expr_, as_expr(f'{v}()'))
 
@@ -31,8 +30,7 @@ class PullConstTest(unittest.TestCase):
 
         expr = as_expr("Cls.func()")
         consts, expr_ = puller.proc_expr(expr)
-        self.assertEqual(len(consts), 1)
-        v, e2 = list(consts.items())[0]
+        (v, e2), = list(consts.items())
         self.assertEqual(e2, as_expr('Cls.func'))
         self.assertEqual(expr_, as_expr(f'{v}()'))
 
@@ -41,15 +39,13 @@ class PullConstTest(unittest.TestCase):
 
         expr = as_expr("Cls[A]()")
         consts, expr_ = puller.proc_expr(expr)
-        self.assertEqual(len(consts), 1)
-        v, e2 = list(consts.items())[0]
+        (v, e2), = list(consts.items())
         self.assertEqual(e2, as_expr('Cls[A]'))
         self.assertEqual(expr_, as_expr(f'{v}()'))
 
         expr = as_expr("Cls[A,B]()")
         consts, expr_ = puller.proc_expr(expr)
-        self.assertEqual(len(consts), 1)
-        v, e2 = list(consts.items())[0]
+        (v, e2), = list(consts.items())
         self.assertEqual(e2, as_expr('Cls[A,B]'))
         self.assertEqual(expr_, as_expr(f'{v}()'))
 
@@ -74,8 +70,7 @@ class PullConstTest(unittest.TestCase):
         for expr in ['pkg.func', 'Cls.func', 'Cls[A]']:
             stmt = as_stmt(template.format(expr=expr))
             consts, stmt_ = puller.proc_stmt(stmt)
-            self.assertEqual(len(consts), 1)
-            v, e2 = list(consts.items())[0]
+            (v, e2), = list(consts.items())
             self.assertEqual(e2, as_expr(expr))
             expected = as_stmt(template.format(expr=v))
             self.assertEqual(stmt_, expected)
