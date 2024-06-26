@@ -1,9 +1,22 @@
 from .myast import Stmt, Expr, Block, Comprehension
 from .myast import (Assert, VarDecl, AnnAssign, AssignStmt, AugAssign, ExprStmt, IfStmt, WhileStmt, ForStmt, Return, Break,
-                   Continue, Pass)
+                   Continue, Pass, FunctionDef, ClassDef)
 from .myast import NameConst, Num, Str,Bytes, Name, FuncCall, GeneratorExpr, ListCompr, SetCompr, \
     BinOp, Compare, BoolOp, UnaryOp, \
     Attribute, Subscript, PyTuple, PyList, PySet, PyDict, IfExp, Lambda, Starred
+from .type_parser import Cls
+
+
+def type_to_str(e) -> str:
+    match e:
+        case Cls('NoneType', []):
+            return 'None'
+        case Cls(cls, []):
+            return f'{cls}'
+        case Cls(cls, tps):
+            return f'{cls}[{','.join([type_to_str(tp) for tp in tps])}]'
+        case _:
+            assert False
 
 
 def expr_to_str(e: Expr) -> str:
@@ -50,6 +63,8 @@ def expr_to_str(e: Expr) -> str:
             return f"({','.join([expr_to_str(elt) for elt in elts])})"
         case PyList(elts):
             return '[' + (', '.join(expr_to_str(elt) for elt in elts)) + ']'
+        case PySet(elts):
+            return '{' + (', '.join(expr_to_str(elt) for elt in elts)) + '}'
         case PyDict(keys, values):
             return '{' + (', '.join(f"{expr_to_str(k)}: {expr_to_str(v)}" for k, v in zip(keys, values))) + '}'
         case IfExp(test, body, orelse):
@@ -73,9 +88,9 @@ def print_st(st: Stmt|Block, indent=''):
         case AssignStmt(t, v):
             print(f"{indent}{expr_to_str(t)} = {expr_to_str(v)}")
         case AnnAssign(Name(t), anno, None):
-            print(f"{indent}{t}: {anno}")
+            print(f"{indent}{t}: {type_to_str(anno)}")
         case AnnAssign(Name(t), anno, value):
-            print(f"{indent}{t}: {anno} = {expr_to_str(value)}")
+            print(f"{indent}{t}: {type_to_str(anno)} = {expr_to_str(value)}")
         case ExprStmt(val):
             print(f"{indent}{expr_to_str(val)}")
         case VarDecl(vt, t, None):
@@ -112,3 +127,11 @@ def print_st(st: Stmt|Block, indent=''):
         case _:
             assert False, st
 
+
+def print_func(f: FunctionDef):
+    if f.returns is None:
+        ret_decl = ''
+    else:
+        ret_decl = f' -> {type_to_str(f.returns)}'
+    print(f'def {f.name}(){ret_decl}:')
+    print_st(f.body, '  ')
