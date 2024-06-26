@@ -68,7 +68,7 @@ def simplify_step(constrs):
         aa, ab = apply_subst(subst, a), apply_subst(subst, b)
         if aa != ab:
             new_constrs.add((aa, ab))
-    return subst, list(new_constrs)
+    return subst, set(new_constrs)
 
 
 def simplify(consts):
