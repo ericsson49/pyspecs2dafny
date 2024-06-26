@@ -1,9 +1,12 @@
 # pyspecs 2 Dafny transpiler
 
-Transpilers from a subset of Python to Dafny, intended to work with Ethereum related specs.
+Research transpilers from a subset of Python to Dafny, intended to work with Ethereum related specs.
+Project [description](https://hackmd.io/@ericsson49/python-to-dafny-transpiler).
 
-# Scala transpiler
+## Scala transpiler
 
-# Python transpiler
+[transpiler](transpiler)
+
+## Python transpiler
 
 [pynotole](pynotole)
