@@ -13,5 +13,9 @@
     <orderEntry type="library" name="lihaoyi.utest_3" level="project" />
     <orderEntry type="library" name="io.github.java.diff.utils" level="project" />
     <orderEntry type="library" name="scala-sdk-3.3.1" level="application" />
+    <orderEntry type="library" name="jpy-0.16.0-SNAPSHOT" level="project" />
+    <orderEntry type="library" name="io.circe.core_3" level="project" />
+    <orderEntry type="library" name="io.circe.generic_3" level="project" />
+    <orderEntry type="library" name="io.circe.parser_3" level="project" />
   </component>
 </module>
