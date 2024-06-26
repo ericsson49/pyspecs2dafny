@@ -6,4 +6,4 @@ Transpilers from a subset of Python to Dafny, intended to work with Ethereum rel
 
 # Python transpiler
 
-[pynotole]
+[pynotole](pynotole)
