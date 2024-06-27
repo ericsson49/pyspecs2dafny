@@ -17,6 +17,7 @@ def f() -> None:
     a[v] = c+d
     a.f[v] = x
     a[x+d] = c
+    a.f[b+1] = f(c+g(c+1))
     '''
 
     tl_defs = parse_py2(code)

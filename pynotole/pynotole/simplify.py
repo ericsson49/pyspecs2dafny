@@ -186,9 +186,10 @@ def simpl(s: Stmt|Block) -> Stmt|Block:
     def has_complex_args(args):
         return any(is_complex(a) for a in args)
     def proc_args(args):
-        _args = { a: Name(fvs.fresh()) for a in args if is_complex(a) }
-        stmts = [AssignStmt(v, ex) for ex, v in _args.items()]
-        return stmts, [_args.get(a) or a for a in args]
+        _args = [ (Name(fvs.fresh()), a) if is_complex(a) else None for a in args ]
+        stmts = [AssignStmt(p[0], p[1]) for p in _args if p is not None]
+        args_ = [a[0] if a is not None else args[i] for i, a in enumerate(_args)]
+        return stmts, args_
 
     def rew_rule(s: Stmt|Block) -> Stmt|Block|None:
         match s:
