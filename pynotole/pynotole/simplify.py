@@ -3,8 +3,8 @@ from typing import Callable, Sequence, Tuple, TypeVar
 
 from .myast import Expr, Stmt, Block, Comprehension
 from .myast import ExprStmt, VarDecl, AssignStmt, IfStmt, ForStmt, WhileStmt
-from .myast import (Num, Name, Subscript, Attribute, FuncCall, GeneratorExpr, ListCompr, SetCompr, DictCompr,
-                   PyTuple)
+from .myast import (Str, Bytes, Num, NameConst, Name, Subscript, Attribute, FuncCall, GeneratorExpr, ListCompr, SetCompr, DictCompr,
+                   PyTuple, BinOp, UnaryOp, Compare, BoolOp)
 
 
 Strategy = Callable[[Stmt], Stmt|None]
@@ -165,24 +165,35 @@ def simplify_assignments(s: Stmt|Block) -> Stmt|Block:
 def simpl(s: Stmt|Block) -> Stmt|Block:
     fvs = FreshVars()
 
-    def has_non_var_args(fc: FuncCall):
-        return any(not isinstance(a, Name) for a in fc.args)
-    def proc_fc(fc: FuncCall):
-        _args = { a: Name(fvs.fresh()) for a in fc.args if not isinstance(a, Name) }
+    def is_complex(e: Expr) -> bool:
+        return not isinstance(e, (Name, NameConst, Str, Bytes, Num))
+    def has_complex_args(args):
+        return any(is_complex(a) for a in args)
+    def proc_args(args):
+        _args = { a: Name(fvs.fresh()) for a in args if is_complex(a) }
         stmts = [AssignStmt(v, ex) for ex, v in _args.items()]
-        return stmts, FuncCall(fc.func, [_args.get(a) or a for a in fc.args], fc.kwargs)
+        return stmts, [_args.get(a) or a for a in args]
 
     def rew_rule(s: Stmt|Block) -> Stmt|Block|None:
         match s:
-            case ExprStmt(FuncCall() as fc) if has_non_var_args(fc):
-                stmts, new_fc = proc_fc(fc)
-                return Block(stmts + [ExprStmt(new_fc)])
-            case AssignStmt(t, FuncCall() as fc) if has_non_var_args(fc):
-                stmts, new_fc = proc_fc(fc)
-                return Block(stmts + [AssignStmt(t, new_fc)])
-            case VarDecl(v, t, FuncCall() as fc) if has_non_var_args(fc):
-                stmts, new_fc = proc_fc(fc)
-                return Block(stmts + [VarDecl(v, t, new_fc)])
+            case ExprStmt(FuncCall(f, args, kwargs)) if has_complex_args(args):
+                stmts, new_args = proc_args(args)
+                return Block(stmts + [ExprStmt(FuncCall(f, new_args, kwargs))])
+            case ExprStmt(BinOp(a, op, b)) if has_complex_args([a,b]):
+                stmts, [a_, b_] = proc_args([a, b])
+                return Block(stmts + [ExprStmt(BinOp(a_, op, b_))])
+            case AssignStmt(t, FuncCall(f, args, kwargs)) if has_complex_args(args):
+                stmts, new_args = proc_args(args)
+                return Block(stmts + [AssignStmt(t, FuncCall(f, new_args, kwargs))])
+            case AssignStmt(t, BinOp(a, op, b)) if has_complex_args([a,b]):
+                stmts, [a_, b_] = proc_args([a, b])
+                return Block(stmts + [AssignStmt(t, BinOp(a_, op, b_))])
+            case VarDecl(v, t, FuncCall(f, args, kwargs)) if has_complex_args(args):
+                stmts, new_args = proc_args(args)
+                return Block(stmts + [VarDecl(v, t, FuncCall(f, new_args, kwargs))])
+            case VarDecl(v, t, BinOp(a, op, b)) if has_complex_args([a, b]):
+                stmts, [a_, b_] = proc_args([a, b])
+                return Block(stmts + [VarDecl(v, t, BinOp(a_, op, b_))])
 
     return reduce(rew_rule, s) or s
 
