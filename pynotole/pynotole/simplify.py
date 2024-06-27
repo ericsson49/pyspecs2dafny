@@ -165,6 +165,22 @@ def simplify_assignments(s: Stmt|Block) -> Stmt|Block:
 def simpl(s: Stmt|Block) -> Stmt|Block:
     fvs = FreshVars()
 
+    def is_func_like(e: Expr) -> bool:
+        return isinstance(e, (FuncCall, BinOp, Attribute, Subscript))
+    def deconsturct(e: Expr):
+        match e:
+            case FuncCall(f, args, kwargs):
+                def reconstruct(args_):
+                    return FuncCall(
+                        f, args_[:len(args)],
+                        list(zip([k for k, _ in kwargs], args[len(args):])))
+                return args + [v for k,v in kwargs], reconstruct
+            case BinOp(a, op, b):
+                return [a, b], lambda args_: BinOp(args_[0], op, args_[1])
+            case Subscript(value, slice):
+                return [value, slice], lambda args_: Subscript(args_[0], args_[1])
+            case Attribute(value, attr):
+                return [value], lambda args_: Attribute(args_[0], attr)
     def is_complex(e: Expr) -> bool:
         return not isinstance(e, (Name, NameConst, Str, Bytes, Num))
     def has_complex_args(args):
@@ -176,21 +192,33 @@ def simpl(s: Stmt|Block) -> Stmt|Block:
 
     def rew_rule(s: Stmt|Block) -> Stmt|Block|None:
         match s:
-            case ExprStmt(FuncCall(f, args, kwargs)) if has_complex_args(args):
-                stmts, new_args = proc_args(args)
-                return Block(stmts + [ExprStmt(FuncCall(f, new_args, kwargs))])
-            case ExprStmt(BinOp(a, op, b)) if has_complex_args([a,b]):
-                stmts, [a_, b_] = proc_args([a, b])
-                return Block(stmts + [ExprStmt(BinOp(a_, op, b_))])
-            case AssignStmt(t, FuncCall(f, args, kwargs)) if has_complex_args(args):
-                stmts, new_args = proc_args(args)
-                return Block(stmts + [AssignStmt(t, FuncCall(f, new_args, kwargs))])
-            case AssignStmt(t, BinOp(a, op, b)) if has_complex_args([a,b]):
-                stmts, [a_, b_] = proc_args([a, b])
-                return Block(stmts + [AssignStmt(t, BinOp(a_, op, b_))])
-            case VarDecl(v, t, FuncCall(f, args, kwargs)) if has_complex_args(args):
-                stmts, new_args = proc_args(args)
-                return Block(stmts + [VarDecl(v, t, FuncCall(f, new_args, kwargs))])
+            case ExprStmt(e) if is_func_like(e):
+                args, reconstruct = deconsturct(e)
+                if has_complex_args(args):
+                    stmts, args_ = proc_args(args)
+                    return Block(stmts + [ExprStmt(reconstruct(args_))])
+            case AssignStmt(Name() as t, e) if is_func_like(e):
+                args, reconstruct = deconsturct(e)
+                if has_complex_args(args):
+                    stmts, args_ = proc_args(args)
+                    return Block(stmts + [AssignStmt(t, reconstruct(args_))])
+            case AssignStmt(Attribute() as t, e) if is_complex(e):
+                stmts, args_ = proc_args([e])
+                return Block(stmts + [AssignStmt(t, args_[0])])
+            case AssignStmt(Attribute(value, attr), e) if is_complex(value):
+                stmts, (value_,) = proc_args([value])
+                return Block(stmts + [AssignStmt(Attribute(value_, attr), e)])
+            case AssignStmt(Subscript() as t, e) if is_complex(e):
+                stmts, (e_,) = proc_args([e])
+                return Block(stmts + [AssignStmt(t, e_)])
+            case AssignStmt(Subscript(value, slice), e) if has_complex_args([value, slice]):
+                stmts, (value_, slice_) = proc_args([value, slice])
+                return Block(stmts + [AssignStmt(Subscript(value_, slice_), e)])
+            case VarDecl(v, t, e) if is_func_like(e):
+                args, reconstruct = deconsturct(e)
+                if has_complex_args(args):
+                    stmts, args_ = proc_args(args)
+                    return Block(stmts + [VarDecl(v, t, reconstruct(args_))])
             case VarDecl(v, t, BinOp(a, op, b)) if has_complex_args([a, b]):
                 stmts, [a_, b_] = proc_args([a, b])
                 return Block(stmts + [VarDecl(v, t, BinOp(a_, op, b_))])
