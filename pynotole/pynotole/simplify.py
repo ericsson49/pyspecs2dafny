@@ -32,7 +32,7 @@ def rewrite(rule: _Strategy, t: _T) -> _T:
 def apply_to_seq(rule: _Strategy, ts: Sequence[_T]) -> Sequence[_T] | None:
     results = list(map(rule, ts))
     if any(results):
-        return [res or orig for orig, res in zip(ts, results)]
+        return [res if res is not None else orig for orig, res in zip(ts, results)]
 
 
 class Rewriting(ABC):
@@ -72,7 +72,9 @@ class Rewriting(ABC):
     @classmethod
     def plus(cls, r1: _Strategy, r2: _Strategy) -> _Strategy:
         def f(t: _T) -> _T|None:
-            return r1(t) or r2(t)
+            res = r1(t)
+            if res is None:
+                return r2(t)
         return f
 
     @classmethod
