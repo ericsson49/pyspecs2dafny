@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence, Tuple, TypeVar
 
+import ast
+import astor
+from functools import partial
+
 from .myast import Expr, Stmt, Block, Comprehension
 from .myast import ExprStmt, VarDecl, AssignStmt, IfStmt, ForStmt, WhileStmt
 from .myast import (Str, Bytes, Num, NameConst, Name, Subscript, Attribute, FuncCall, GeneratorExpr, ListCompr, SetCompr, DictCompr,
@@ -21,7 +25,8 @@ def unzip(coll):
     return res1, res2
 
 def rewrite(rule: _Strategy, t: _T) -> _T:
-    return rule(t) or t
+    res = rule(t)
+    return res if res is not None else t
 
 
 def apply_to_seq(rule: _Strategy, ts: Sequence[_T]) -> Sequence[_T] | None:
@@ -33,14 +38,29 @@ def apply_to_seq(rule: _Strategy, ts: Sequence[_T]) -> Sequence[_T] | None:
 class Rewriting(ABC):
     @classmethod
     @abstractmethod
-    def some(cls, rule: _Strategy) -> _Strategy: ...
+    def compare_nodes(self, a, b) -> bool:
+        assert False
+
+    @classmethod
+    @abstractmethod
+    def some(cls, rule: _Strategy) -> _Strategy:
+        assert False
+
+    @classmethod
+    def _sanitize_rule(cls, rule: _Strategy) -> _Strategy:
+        def r(t: _T) -> _T|None:
+            res = rule(t)
+            if res is not None and not cls.compare_nodes(t, res):
+                return res
+        return r
 
     @classmethod
     def repeat(cls, rule: _Strategy) -> _Strategy:
+        rule_ = cls._sanitize_rule(rule)
         def f(t: _T) -> _T|None:
-            curr, prev = rule(t), None
+            curr, prev = rule_(t), None
             while curr is not None:
-                curr, prev = rule(curr), curr
+                curr, prev = rule_(curr), curr
             return prev
         return f
 
