@@ -88,7 +88,7 @@ class AstRewriting(Rewriting):
 
 def simplify_ast_rule(fvs, s):
     def is_func_like(s):
-        return isinstance(s, (ast.Call, ast.BinOp, ast.Attribute, ast.Subscript))
+        return isinstance(s, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Attribute, ast.Subscript))
 
     def extract_func_like_args(s):
         match s:
@@ -98,6 +98,8 @@ def simplify_ast_rule(fvs, s):
                 return list(args) + [kw.value for kw in kwargs]
             case ast.BinOp(left, _, right):
                 return [left, right]
+            case ast.UnaryOp(_, operand):
+                return [operand]
             case ast.Attribute(value, _):
                 return [value]
             case ast.Subscript(value, idx):
@@ -121,6 +123,9 @@ def simplify_ast_rule(fvs, s):
             case ast.BinOp(_, op, _):
                 assert len(args) == 2
                 return ast.BinOp(args[0], op, args[1])
+            case ast.UnaryOp(op, _):
+                assert len(args) == 1
+                return ast.UnaryOp(op, args[0])
             case ast.Attribute(_, attr, ctx):
                 assert len(args) == 1
                 return ast.Attribute(args[0], attr, ctx)
