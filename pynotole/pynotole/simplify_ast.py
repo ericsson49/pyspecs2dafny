@@ -58,6 +58,8 @@ def simplify_ast_rule(fvs, s):
 
     def extract_func_like_args(s):
         match s:
+            case ast.Call(ast.Attribute(value, _), args, kwargs):
+                return [value] + list(args) + [kw.value for kw in kwargs]
             case ast.Call(_, args, kwargs):
                 return list(args) + [kw.value for kw in kwargs]
             case ast.BinOp(left, _, right):
@@ -71,6 +73,12 @@ def simplify_ast_rule(fvs, s):
 
     def replace_func_like_args(s, args):
         match s:
+            case ast.Call(ast.Attribute(_, attr)) as call:
+                assert len(args) == 1 + len(call.args) + len(call.keywords)
+                value_ = args[0]
+                args_ = args[1:1 + len(call.args)]
+                kwds_ = [ast.keyword(kw.arg, arg) for arg, kw in zip(args[1 + len(call.args):])]
+                return ast.Call(func=ast.Attribute(value_, attr), args=args_, keywords=kwds_)
             case ast.Call() as call:
                 assert len(args) == len(call.args) + len(call.keywords)
                 args_ = args[:len(call.args)]
