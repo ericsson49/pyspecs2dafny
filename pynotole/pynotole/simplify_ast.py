@@ -103,12 +103,12 @@ def simplify_ast_rule(fvs, s):
                 assert len(args) == 1 + len(call.args) + len(call.keywords)
                 value_ = args[0]
                 args_ = args[1:1 + len(call.args)]
-                kwds_ = [ast.keyword(kw.arg, arg) for arg, kw in zip(args[1 + len(call.args):])]
+                kwds_ = [ast.keyword(kw.arg, arg) for arg, kw in zip(args[1 + len(call.args):], call.keywords)]
                 return ast.Call(func=ast.Attribute(value_, attr), args=args_, keywords=kwds_)
             case ast.Call() as call:
                 assert len(args) == len(call.args) + len(call.keywords)
                 args_ = args[:len(call.args)]
-                kwds_ = [ast.keyword(kw.arg, arg) for arg, kw in zip(args[len(call.args):])]
+                kwds_ = [ast.keyword(kw.arg, arg) for arg, kw in zip(args[len(call.args):], call.keywords)]
                 return ast.Call(func=call.func, args=args_, keywords=kwds_)
             case ast.BinOp(_, op, _):
                 assert len(args) == 2
