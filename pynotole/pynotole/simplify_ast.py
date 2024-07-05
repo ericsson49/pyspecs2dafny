@@ -135,6 +135,20 @@ def simplify_ast_rule(fvs, s):
             case _:
                 assert False
 
+    def convert_func_like(e: ast.expr):
+        assns = []
+
+        def process_arg(arg):
+            if not isinstance(arg, ast.Name):
+                fn = fvs.fresh()
+                assns.append(ast.Assign([ast.Name(fn, ast.Store())], arg))
+                return ast.Name(fn, ast.Load())
+            else:
+                return arg
+
+        args_ = list(map(process_arg, extract_func_like_args(e)))
+        return assns, replace_func_like_args(e, args_)
+
     match s:
         case ast.Assign([tgt], value) if not isinstance(tgt, ast.Name) and not isinstance(value, ast.Name):
             fn = fvs.fresh()
@@ -142,30 +156,11 @@ def simplify_ast_rule(fvs, s):
                 ast.Assign([ast.Name(fn,ast.Store())], value),
                 ast.Assign([tgt], ast.Name(fn, ast.Load()))
             ]
-        case ast.Assign([ast.Name() as tgt], value) \
-            if is_func_like(value) \
-               and any(not isinstance(arg, ast.Name) for arg in extract_func_like_args(value)):
-            assns = []
-
-            def process_arg(arg):
-                if not isinstance(arg, ast.Name):
-                    fn = fvs.fresh()
-                    assns.append(ast.Assign([ast.Name(fn, ast.Store())], arg))
-                    return ast.Name(fn, ast.Load())
-                else:
-                    return arg
-
-            args_ = list(map(process_arg, extract_func_like_args(value)))
-            return assns + [
-                ast.Assign([tgt], replace_func_like_args(value, args_))
-            ]
-        case ast.Assign([ast.Name() as tgt], ast.IfExp(test, body, orelse)) if not isinstance(test, ast.Name):
-            fn = fvs.fresh()
-            return [
-                ast.Assign([ast.Name(fn, ast.Store())], test),
-                ast.Assign([tgt], ast.IfExp(ast.Name(fn, ast.Load()), body, orelse))
-            ]
-        case ast.Assign([ast.Name() as tgt], ast.IfExp(ast.Name() as test, body, orelse)):
+        case ast.Assign([ast.Name() as tgt], value) if is_func_like(value) \
+                    and any(not isinstance(arg, ast.Name) for arg in extract_func_like_args(value)):
+            assns, value_ = convert_func_like(value)
+            return assns + [ast.Assign([tgt], value_)]
+        case ast.Assign([ast.Name() as tgt], ast.IfExp(test, body, orelse)):
             return ast.If(test,
                           [ast.Assign([tgt], body)],
                           [ast.Assign([tgt], orelse)])
@@ -187,22 +182,15 @@ def simplify_ast_rule(fvs, s):
                 ast.Assign([ast.Name(fn, ast.Store())], index),
                 ast.Assign([ast.Subscript(value, ast.Name(fn, ast.Load()))], v)
             ]
-        case ast.Expr(value) \
-            if is_func_like(value) \
-               and any(map(lambda arg: not isinstance(arg, ast.Name), extract_func_like_args(value))):
-            assns = []
-
-            def process_arg(arg):
-                if not isinstance(arg, ast.Name):
-                    fn = fvs.fresh()
-                    assns.append(ast.Assign([ast.Name(fn, ast.Store())], arg))
-                    return ast.Name(fn, ast.Load())
-                else:
-                    return arg
-
-            args_ = list(map(process_arg, extract_func_like_args(value)))
-            return assns + [
-                ast.Expr(replace_func_like_args(value, args_))
+        case ast.Expr(value) if is_func_like(value) \
+                   and any(map(lambda arg: not isinstance(arg, ast.Name), extract_func_like_args(value))):
+            assns, value_ = convert_func_like(value)
+            return assns + [ast.Expr(value_)]
+        case ast.If(test, body, orelse) if not isinstance(test, ast.Name):
+            fn = fvs.fresh()
+            return [
+                ast.Assign([ast.Name(fn, ast.Store())], test),
+                ast.If(ast.Name(fn, ast.Load()), body, orelse)
             ]
         case ast.Return(value) if value is not None and not isinstance(value, ast.Name):
             fn = fvs.fresh()
