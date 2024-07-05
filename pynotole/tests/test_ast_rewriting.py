@@ -61,6 +61,20 @@ class AstRewritingTestCase(unittest.TestCase):
         self.assertAstEqual(None, rule(parse_stmt('pass')))
         self.assertAstEqual(None, rule(parse_stmt('pass')))
 
+    def test_seq(self):
+        def r1(s):
+            match s:
+                case ast.Pass():
+                    return ast.Expr(value=ast.Ellipsis())
+
+        def r2(s):
+            match s:
+                case ast.Expr(value):
+                    return ast.Assign([ast.Name('_', ast.Store())], value)
+
+        self.assertAstEqual(None, AstRewriting.seq(r1, r2)(parse_stmt('...')))
+        self.assertAstEqual(parse_stmt('_ = ...'), AstRewriting.seq(r1, r2)(parse_stmt('pass')))
+
 
 
 if __name__ == '__main__':
