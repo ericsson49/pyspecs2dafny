@@ -47,6 +47,11 @@ class Rewriting(ABC):
         assert False
 
     @classmethod
+    @abstractmethod
+    def all(cls, rule: _Strategy) -> _Strategy:
+        assert False
+
+    @classmethod
     def _sanitize_rule(cls, rule: _Strategy) -> _Strategy:
         def r(t: _T) -> _T|None:
             res = rule(t)
@@ -69,6 +74,22 @@ class Rewriting(ABC):
         def f(t: _T) -> _T|None:
             return r1(t) or r2(t)
         return f
+
+    @classmethod
+    def seq(cls, r1: _Strategy, r2: _Strategy) -> _Strategy:
+        def f(t: _T) -> _T|None:
+            res = r1(t)
+            if res is not None:
+                return r2(res)
+        return f
+
+    @classmethod
+    def bottomup(cls, s: _Strategy) -> _Strategy:
+        return cls.seq(cls.all(lambda t: cls.bottomup(s)(t)), s)
+
+    @classmethod
+    def topdown(cls, s: _Strategy) -> _Strategy:
+        return cls.seq(s, cls.all(lambda t: cls.topdown(s)(t)))
 
     @classmethod
     def reduce(cls, rule: _Strategy) -> _Strategy:
