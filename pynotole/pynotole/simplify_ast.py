@@ -54,6 +54,29 @@ class AstRewriting(Rewriting):
                         return ast.While(test=test, body=body_, orelse=[])
         return res
 
+    @classmethod
+    def all(cls, rule):
+        def f(s):
+            match s:
+                case [*stmts]:
+                    stmts_ = list(map(rule, stmts))
+                    if all(st is not None for st in stmts_):
+                        return _flatten(stmts_)
+                case ast.While(test, body, []):
+                    body_ = f(body)
+                    if body_ is not None:
+                        return ast.While(test, body_, [])
+                case ast.If(test, body, orelse):
+                    body_ = f(body)
+                    orelse_ = f(orelse)
+                    if body_ is not None or orelse_ is not None:
+                        return ast.If(test,
+                                      body_ if body_ is not None else body,
+                                      orelse_ if orelse_ is not None else orelse)
+                case _:
+                    return s
+        return f
+
 
 def simplify_ast_rule(fvs, s):
     def is_func_like(s):
