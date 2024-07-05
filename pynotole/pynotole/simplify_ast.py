@@ -217,7 +217,7 @@ def simplify_ast_rule(fvs, s):
                 ast.Assign([ast.Subscript(value, ast.Name(fn, ast.Load()))], v)
             ]
         case ast.Expr(value) if is_func_like(value) \
-                   and any(map(lambda arg: not isinstance(arg, ast.Name), extract_func_like_args(value))):
+                    and any(map(lambda arg: not isinstance(arg, ast.Name), extract_func_like_args(value))):
             assns, value_ = convert_func_like(value)
             return assns + [ast.Expr(value_)]
         case ast.If(test, body, orelse) if not isinstance(test, ast.Name):
