@@ -52,6 +52,10 @@ class AstRewriting(Rewriting):
                     body_ = res(body)
                     if body_ is not None:
                         return ast.While(test=test, body=body_, orelse=[])
+                case ast.For(target, iter, body, []):
+                    body_ = res(body)
+                    if body_ is not None:
+                        return ast.For(target, iter, body_, [])
         return res
 
     @classmethod
@@ -66,6 +70,10 @@ class AstRewriting(Rewriting):
                     body_ = f(body)
                     if body_ is not None:
                         return ast.While(test, body_, [])
+                case ast.For(target, iter, body, []):
+                    body_ = f(body)
+                    if body_ is not None:
+                        return ast.For(target, iter, body, [])
                 case ast.If(test, body, orelse):
                     body_ = f(body)
                     orelse_ = f(orelse)
