@@ -149,6 +149,17 @@ def simplify_ast_rule(fvs, s):
         args_ = list(map(process_arg, extract_func_like_args(e)))
         return assns, replace_func_like_args(e, args_)
 
+    def covert_bool_op(e: ast.BoolOp):
+        match e:
+            case ast.BoolOp(op, [value]):
+                return value
+            case ast.BoolOp(ast.And(), [value, *rest]):
+                return ast.IfExp(value, ast.BoolOp(ast.And(), rest), ast.NameConstant(False))
+            case ast.BoolOp(ast.Or(), [value, *rest]):
+                return ast.IfExp(value, ast.NameConstant(True), ast.BoolOp(ast.Or(), rest))
+            case _:
+                assert False
+
     match s:
         case ast.Assign([tgt], value) if not isinstance(tgt, ast.Name) and not isinstance(value, ast.Name):
             fn = fvs.fresh()
@@ -164,6 +175,8 @@ def simplify_ast_rule(fvs, s):
             return ast.If(test,
                           [ast.Assign([tgt], body)],
                           [ast.Assign([tgt], orelse)])
+        case ast.Assign([ast.Name() as tgt], ast.BoolOp() as value):
+            return ast.Assign([tgt], covert_bool_op(value))
         case ast.Assign([ast.Attribute(value, attr)], ast.Name() as v) if not isinstance(value, ast.Name):
             fn = fvs.fresh()
             return [
