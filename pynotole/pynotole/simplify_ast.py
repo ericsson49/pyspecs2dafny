@@ -160,6 +160,23 @@ def simplify_ast_rule(fvs, s):
             case _:
                 assert False
 
+    def convert_compare_op(e: ast.Compare):
+        match e:
+            case ast.Compare(left, ops, operands) if not isinstance(left, ast.Name):
+                fn = fvs.fresh()
+                assns = [ast.Assign([ast.Name(fn, ast.Store())], left)]
+                return assns, ast.Compare(ast.Name(fn, ast.Load), ops, operands)
+            case ast.Compare(ast.Name() as left, ops, [operand, *rest]) if not isinstance(operand, ast.Name):
+                fn = fvs.fresh()
+                assns = [ast.Assign([ast.Name(fn, ast.Store())], operand)]
+                return assns, ast.Compare(left, ops, [ast.Name(fn, ast.Load), *rest])
+            case ast.Compare(ast.Name() as left, [op, *rest_ops], [ast.Name() as operand, *rest]):
+                return [], ast.BoolOp(ast.And(),
+                                      [ast.Compare(left, [op], [operand]),
+                                       ast.Compare(operand, rest_ops, rest)])
+            case _:
+                assert False
+
     match s:
         case ast.Assign([tgt], value) if not isinstance(tgt, ast.Name) and not isinstance(value, ast.Name):
             fn = fvs.fresh()
@@ -177,6 +194,10 @@ def simplify_ast_rule(fvs, s):
                           [ast.Assign([tgt], orelse)])
         case ast.Assign([ast.Name() as tgt], ast.BoolOp() as value):
             return ast.Assign([tgt], covert_bool_op(value))
+        case ast.Assign([ast.Name() as tgt], ast.Compare(left, _, [operand, *_]) as value) \
+                if any(not isinstance(v, ast.Name) for v in [left, operand]):
+            assns, value_ = convert_compare_op(value)
+            return assns + [ast.Assign([tgt], value_)]
         case ast.Assign([ast.Attribute(value, attr)], ast.Name() as v) if not isinstance(value, ast.Name):
             fn = fvs.fresh()
             return [
