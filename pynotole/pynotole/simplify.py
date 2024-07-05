@@ -73,8 +73,7 @@ class Rewriting(ABC):
     def plus(cls, r1: _Strategy, r2: _Strategy) -> _Strategy:
         def f(t: _T) -> _T|None:
             res = r1(t)
-            if res is None:
-                return r2(t)
+            return res if res is not None else r2(t)
         return f
 
     @classmethod
