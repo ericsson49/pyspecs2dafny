@@ -3,6 +3,17 @@ import astor
 from functools import partial
 from .simplify import FreshVars, Rewriting, rewrite
 
+
+def _flatten(elems):
+    res = []
+    for elem in elems:
+        if isinstance(elem, list):
+            res.extend(elem)
+        else:
+            res.append(elem)
+    return res
+
+
 class AstRewriting(Rewriting):
     @classmethod
     def compare_nodes(self, a, b) -> bool:
@@ -19,14 +30,6 @@ class AstRewriting(Rewriting):
 
     @classmethod
     def some(cls, rule):
-        def flatten(elems):
-            res = []
-            for elem in elems:
-                if isinstance(elem, list):
-                    res.extend(elem)
-                else:
-                    res.append(elem)
-            return res
         def res(s):
             match s:
                 case [stmt, *stmts]:
@@ -35,7 +38,7 @@ class AstRewriting(Rewriting):
                     if stmt_ is not None or stmts_ is not None:
                         r1 = stmt_ if stmt_ is not None else stmt
                         r2 = stmts_ if stmts_ is not None else stmts
-                        stmts__ = flatten([r1] + r2)
+                        stmts__ = _flatten([r1] + r2)
                         if not cls._compare_seq([stmt] + stmts, stmts__):
                             return stmts__
                 case ast.If(test, body, orelse):
