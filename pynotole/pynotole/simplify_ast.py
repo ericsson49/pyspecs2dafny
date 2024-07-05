@@ -204,6 +204,16 @@ def simplify_ast_rule(fvs, s):
             return assns + [
                 ast.Expr(replace_func_like_args(value, args_))
             ]
+        case ast.Return(value) if value is not None and not isinstance(value, ast.Name):
+            fn = fvs.fresh()
+            return [
+                ast.Assign([ast.Name(fn, ast.Store())], value),
+                ast.Return(ast.Name(fn, ast.Load()))
+            ]
+        case ast.While(test, body, []) if not isinstance(test, (ast.NameConstant, ast.Name)):
+            return ast.While(ast.NameConstant(True), [
+                ast.If(test, body, [ast.Break()])
+            ], [])
 
 
 def simplify_ast(n):
