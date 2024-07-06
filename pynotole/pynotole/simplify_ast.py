@@ -258,6 +258,17 @@ def simplify_ast_rule(fvs, s):
             return ast.While(ast.NameConstant(True), [
                 ast.If(test, body, [ast.Break()])
             ], [])
+        case ast.For(tgt, _iter, body, []) if not is_simple_value(_iter):
+            fn = fvs.fresh()
+            return [
+                ast.Assign([ast.Name(fn, ast.Store())], _iter),
+                ast.For(tgt, ast.Name(fn, ast.Load()), body, [])
+            ]
+        case ast.For(tgt, _iter, body, []) if not isinstance(tgt, ast.Name):
+            fn = fvs.fresh()
+            return ast.For(ast.Name(fn, ast.Store()), _iter,
+                           [ast.Assign([tgt], ast.Name(fn, ast.Load()))]
+                           + body, [])
 
 
 def simplify_ast(n):
