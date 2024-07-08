@@ -37,6 +37,19 @@ class GraphUtilsTestCase(unittest.TestCase):
 
         self.assertEqual({1: set(), 2: {2}, 3: {5}, 4: {5}, 5: {2}, 6: set()}, dom_frontier(g.edges))
 
+    def test_kosaraju(self):
+        g = Graph([(1,2), (2,3), (2,4), (2,6), (3,5), (4,5), (5,2)])
+
+        res = kosaraju(g.edges)
+
+        cycles = set()
+        for rep, cycle in in_nodes(res.items()).items():
+            self.assertIn(rep, cycle, "the cycle's representative should belong to the cycle")
+            cycles.add(fset(cycle))
+
+        self.assertEqual(g.get_nodes(), fset(concat(cycles)))
+        self.assertEqual({fset({1}), fset({2,3,4,5}), fset({6})}, cycles)
+
 
 if __name__ == '__main__':
     unittest.main()
