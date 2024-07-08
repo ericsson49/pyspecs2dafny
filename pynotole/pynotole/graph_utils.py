@@ -7,7 +7,7 @@ from toolz.itertoolz import *
 
 class Graph[N]:
     def __init__(self, edges: Iterable[tuple[N, N]]):
-        self.edges = edges
+        self.edges = fset(edges)
 
     def get_nodes(self) -> fset[N]:
         return fset(mapcat(lambda e: e, self.edges))
@@ -20,6 +20,59 @@ class Graph[N]:
 
     def get_succs(self, n: N) -> Iterable[N]:
         return fset(b for a,b in self.edges if a == n)
+
+
+class CFG[N,V](Graph[N]):
+    def __init__(self, nodes: Iterable[tuple[N, Iterable[V], Iterable[V], Iterable[N]]]):
+        super().__init__((n, s) for n, _, _, succs in nodes for s in succs)
+        self.defs_and_uses = {n: (defs, uses) for n, defs, uses, succs in nodes}
+
+    def get_defs(self, n: N) -> Iterable[V]:
+        return self.defs_and_uses[n][0]
+
+    def get_uses(self, n: N) -> Iterable[V]:
+        return self.defs_and_uses[n][1]
+
+    def live_vars(self) -> dict[N, fset[N]]:
+        def step(ins: dict[N, Iterable[N]]):
+            res = ins.copy()
+            for n in self.get_nodes():
+                out: set[V] = set()
+                for s in self.get_succs(n):
+                    out |= ins.get(s, set())
+                gen, kill = set(self.get_uses(n)), set(self.get_defs(n))
+                in_ = (out - kill) | gen
+                res[n] = res.get(n, set()) | in_
+            return res
+        return _fixp(step)({})
+
+    def phi_nodes(self, min=True):
+        df = dom_frontier(self.get_edges())
+
+        def get_df(ns: Iterable[N]) -> set[N]:
+            return set(mapcat(lambda n: df.get(n, set()), ns))
+
+        def get_idf(ns: Iterable[N]) -> set[N]:
+            return _fixp(lambda xs: xs | get_df(xs))(get_df(ns))
+
+        if min:
+            lvs = self.live_vars()
+
+        res = {}
+        for n in self.get_nodes():
+            defs = set(self.get_defs(n))
+            for m in get_idf({n}):
+                defs_ = defs.intersection(lvs.get(m)) if min else defs
+                if defs_:
+                    res[m] = res.get(m, set()) | defs_
+        return res
+
+
+def _fixp(f):
+    def g(xs):
+        xs_ = f(xs)
+        return xs if xs_ == xs else g(xs_)
+    return g
 
 
 def out_nodes(g):
