@@ -17,6 +17,7 @@ Strategy = Callable[[Stmt], Stmt|None]
 _T = TypeVar('_T')
 _Strategy = Callable[[_T], _T|None]
 
+
 def unzip(coll):
     res1, res2 = [], []
     for a, b in coll:
@@ -24,9 +25,9 @@ def unzip(coll):
         res2.append(b)
     return res1, res2
 
+
 def rewrite(rule: _Strategy, t: _T) -> _T:
-    res = rule(t)
-    return res if res is not None else t
+    return res if (res := rule(t)) is not None else t
 
 
 def apply_to_seq(rule: _Strategy, ts: Sequence[_T]) -> Sequence[_T] | None:
@@ -72,15 +73,13 @@ class Rewriting(ABC):
     @classmethod
     def plus(cls, r1: _Strategy, r2: _Strategy) -> _Strategy:
         def f(t: _T) -> _T|None:
-            res = r1(t)
-            return res if res is not None else r2(t)
+            return res if (res := r1(t)) is not None else r2(t)
         return f
 
     @classmethod
     def seq(cls, r1: _Strategy, r2: _Strategy) -> _Strategy:
         def f(t: _T) -> _T|None:
-            res = r1(t)
-            if res is not None:
+            if (res := r1(t)) is not None:
                 return r2(res)
         return f
 
