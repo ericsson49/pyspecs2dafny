@@ -70,8 +70,7 @@ class CFG[N,V](Graph[N]):
 
 def _fixp(f):
     def g(xs):
-        xs_ = f(xs)
-        return xs if xs_ == xs else g(xs_)
+        return xs if (xs_ := f(xs)) == xs else g(xs_)
     return g
 
 
