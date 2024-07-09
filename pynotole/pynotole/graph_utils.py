@@ -7,7 +7,7 @@ from toolz.itertoolz import *
 
 class Graph[N]:
     def __init__(self, edges: Iterable[tuple[N, N]]):
-        self.edges = fset(edges)
+        self.edges = list(edges)
 
     def get_nodes(self) -> fset[N]:
         return fset(mapcat(lambda e: e, self.edges))
@@ -16,10 +16,10 @@ class Graph[N]:
         return self.edges
 
     def get_preds(self, n: N) -> Iterable[N]:
-        return fset(a for a,b in self.edges if b == n)
+        return [a for a,b in self.edges if b == n]
 
     def get_succs(self, n: N) -> Iterable[N]:
-        return fset(b for a,b in self.edges if a == n)
+        return [b for a,b in self.edges if a == n]
 
 
 class CFG[N,V](Graph[N]):
@@ -28,10 +28,16 @@ class CFG[N,V](Graph[N]):
         self.defs_and_uses = {n: (defs, uses) for n, defs, uses, succs in nodes}
 
     def get_defs(self, n: N) -> Iterable[V]:
-        return self.defs_and_uses[n][0]
+        if n in self.defs_and_uses:
+            return self.defs_and_uses[n][0]
+        else:
+            return set()
 
     def get_uses(self, n: N) -> Iterable[V]:
-        return self.defs_and_uses[n][1]
+        if n in self.defs_and_uses:
+            return self.defs_and_uses[n][1]
+        else:
+            return set()
 
     def live_vars(self) -> dict[N, fset[N]]:
         def step(ins: dict[N, Iterable[N]]):
@@ -75,11 +81,11 @@ def _fixp(f):
 
 
 def out_nodes(g):
-    return valmap(lambda ps: set(b for a,b in ps), groupby(0, g))
+    return valmap(lambda ps: [b for a,b in ps], groupby(0, g))
 
 
 def in_nodes(g):
-    return valmap(lambda ps: set(a for a,b in ps), groupby(1, g))
+    return valmap(lambda ps: [a for a,b in ps], groupby(1, g))
 
 
 def get_nodes(g):

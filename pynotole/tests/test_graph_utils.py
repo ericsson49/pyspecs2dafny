@@ -8,19 +8,19 @@ class GraphUtilsTestCase(unittest.TestCase):
         g = Graph([(1,2), (2,3), (2,4), (2,6), (3,5), (4,5), (5,2)])
 
         self.assertEqual({1,2,3,4,5,6}, g.get_nodes())
-        self.assertEqual(set(), g.get_preds(1))
-        self.assertEqual({1,5}, g.get_preds(2))
-        self.assertEqual({2}, g.get_preds(3))
-        self.assertEqual({2}, g.get_preds(4))
-        self.assertEqual({3,4}, g.get_preds(5))
-        self.assertEqual({2}, g.get_preds(6))
+        self.assertEqual([], g.get_preds(1))
+        self.assertEqual([1,5], g.get_preds(2))
+        self.assertEqual([2], g.get_preds(3))
+        self.assertEqual([2], g.get_preds(4))
+        self.assertEqual([3,4], g.get_preds(5))
+        self.assertEqual([2], g.get_preds(6))
 
-        self.assertEqual({2}, g.get_succs(1))
-        self.assertEqual({3,4,6}, g.get_succs(2))
-        self.assertEqual({5}, g.get_succs(3))
-        self.assertEqual({5}, g.get_succs(4))
-        self.assertEqual({2}, g.get_succs(5))
-        self.assertEqual(set(), g.get_succs(6))
+        self.assertEqual([2], g.get_succs(1))
+        self.assertEqual([3,4,6], g.get_succs(2))
+        self.assertEqual([5], g.get_succs(3))
+        self.assertEqual([5], g.get_succs(4))
+        self.assertEqual([2], g.get_succs(5))
+        self.assertEqual([], g.get_succs(6))
 
     def test_dominance(self):
         g = Graph([(1,2), (2,3), (2,4), (2,6), (3,5), (4,5), (5,2)])
@@ -53,16 +53,16 @@ class GraphUtilsTestCase(unittest.TestCase):
 
     def test_cfg(self):
         cfg = CFG([
-            (1, {'i', 'n', 'a'}, set(), {2}),
-            (2, set(), {'i', 'n'}, {3, 4, 6}),
-            (3, {'b'}, set(), {5}),
-            (4, {'b'}, {'i', 'n'}, {5}),
-            (5, {'i', 'b'}, {'i', 'a', 'b'}, {2}),
+            (1, {'i', 'n', 'a'}, set(), [2]),
+            (2, set(), {'i', 'n'}, [3, 4, 6]),
+            (3, {'b'}, set(), [5]),
+            (4, {'b'}, {'i', 'n'}, [5]),
+            (5, {'i', 'b'}, {'i', 'a', 'b'}, [2]),
             (6, set(), {'a'}, set())
         ])
 
         self.assertEqual({1,2,3,4,5,6}, cfg.get_nodes())
-        self.assertEqual({(1,2), (2,3), (2,4), (2,6), (3,5), (4,5), (5,2)}, cfg.get_edges())
+        self.assertEqual([(1,2), (2,3), (2,4), (2,6), (3,5), (4,5), (5,2)], cfg.get_edges())
 
         res = cfg.live_vars()
         self.assertEqual(set(), res[1])
