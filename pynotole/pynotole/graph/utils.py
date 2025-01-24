@@ -1,5 +1,5 @@
 from builtins import frozenset as fset
-from typing import Iterable
+from typing import Iterable, Collection, Mapping
 
 from toolz.dicttoolz import *
 from toolz.itertoolz import *
@@ -22,62 +22,70 @@ class Graph[N]:
         return [b for a,b in self.edges if a == n]
 
 
-class CFG[N,V](Graph[N]):
-    def __init__(self, nodes: Iterable[tuple[N, Iterable[V], Iterable[V], Iterable[N]]]):
-        super().__init__((n, s) for n, _, _, succs in nodes for s in succs)
-        self.defs_and_uses = {n: (defs, uses) for n, defs, uses, succs in nodes}
+class CFG[N,B](Graph[N]):
+    def __init__(self, edges: Iterable[tuple[N, N]], blocks: dict[N, B]):
+        super().__init__(edges)
+        self.blocks = blocks
 
-    def get_defs(self, n: N) -> Iterable[V]:
-        if n in self.defs_and_uses:
-            return self.defs_and_uses[n][0]
+    @classmethod
+    def make(cls, nodes: Iterable[tuple[N, B, Iterable[N]]]):
+        edges = [(n, s) for n, _, succs in nodes for s in succs]
+        blocks = {n: b for n, b, _ in nodes}
+        return CFG(edges, blocks)
+
+    def get_defs(self, n: N) -> Iterable[str]:
+        if n in self.blocks:
+            return self.blocks[n].get_defs_uses()[0]
         else:
             return set()
 
-    def get_uses(self, n: N) -> Iterable[V]:
-        if n in self.defs_and_uses:
-            return self.defs_and_uses[n][1]
+    def get_uses(self, n: N) -> Iterable[str]:
+        if n in self.blocks:
+            return self.blocks[n].get_defs_uses()[1]
         else:
             return set()
-
-    def live_vars(self) -> dict[N, fset[N]]:
-        def step(ins: dict[N, Iterable[N]]):
-            res = ins.copy()
-            for n in self.get_nodes():
-                out: set[V] = set()
-                for s in self.get_succs(n):
-                    out |= ins.get(s, set())
-                gen, kill = set(self.get_uses(n)), set(self.get_defs(n))
-                in_ = (out - kill) | gen
-                res[n] = res.get(n, set()) | in_
-            return res
-        return _fixp(step)({})
-
-    def phi_nodes(self, min=True):
-        df = dom_frontier(self.get_edges())
-
-        def get_df(ns: Iterable[N]) -> set[N]:
-            return set(mapcat(lambda n: df.get(n, set()), ns))
-
-        def get_idf(ns: Iterable[N]) -> set[N]:
-            return _fixp(lambda xs: xs | get_df(xs))(get_df(ns))
-
-        if min:
-            lvs = self.live_vars()
-
-        res = {}
-        for n in self.get_nodes():
-            defs = set(self.get_defs(n))
-            for m in get_idf({n}):
-                defs_ = defs.intersection(lvs.get(m)) if min else defs
-                if defs_:
-                    res[m] = res.get(m, set()) | defs_
-        return res
 
 
 def _fixp(f):
     def g(xs):
         return xs if (xs_ := f(xs)) == xs else g(xs_)
     return g
+
+
+def live_vars[N, V](cfg: CFG[N, V]) -> dict[N, set[V]]:
+    def step(ins: dict[N, set[N]]):
+        res = ins.copy()
+        for n in cfg.get_nodes():
+            out: set[V] = set()
+            for s in cfg.get_succs(n):
+                out |= ins.get(s, set())
+            gen, kill = set(cfg.get_uses(n)), set(cfg.get_defs(n))
+            in_ = (out - kill) | gen
+            res[n] = res.get(n, set()) | in_
+        return res
+    return _fixp(step)({})
+
+
+def phi_nodes[N, V](cfg: CFG[N,V], min=True) -> dict[N, set[V]]:
+    df = dom_frontier(cfg.get_edges())
+
+    def get_df(ns: Iterable[N]) -> set[N]:
+        return set(mapcat(lambda n: df.get(n, set()), ns))
+
+    def get_idf(ns: Iterable[N]) -> set[N]:
+        return _fixp(lambda xs: xs | get_df(xs))(get_df(ns))
+
+    if min:
+        lvs = live_vars(cfg)
+
+    res: dict[N, set[V]] = {}
+    for n in cfg.get_nodes():
+        defs = set(cfg.get_defs(n))
+        for m in get_idf({n}):
+            defs_ = defs.intersection(lvs.get(m)) if min else defs
+            if defs_:
+                res[m] = res.get(m, set()) | defs_
+    return res
 
 
 def out_nodes(g):

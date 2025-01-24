@@ -1,19 +1,7 @@
 import unittest
 
-import ast
-
-from pynotole.ssa_ast import *
-from pynotole.graph_utils import get_start_node, in_nodes, out_nodes
-from pynotole.pyparser2 import parse_stmts as my_parse_stmts, parse_stmt as my_parse_stmt
-
-def parse_stmts(code: str) -> list[ast.stmt]:
-    return ast.parse(code).body
-
-
-def parse_stmt(code: str) -> ast.stmt:
-    stmts = parse_stmts(code)
-    assert len(stmts) == 1
-    return stmts[0]
+from pynotole.graph.builders import *
+from utils.ssa import *
 
 
 labeler = IndexingLabeler()
@@ -32,7 +20,7 @@ class CFGBuilderTest(unittest.TestCase):
         entry, exit = b.get_entry(), b.get_exit()
 
         l0 = b.on_stmt(b.get_label(entry, 0), parse_stmt('a = b'), exit)
-        b.add_edge(b.add_node(entry, BBlock(set(), set())), l0)
+        b.add_edge(b.add_node(entry, DummyBlock()), l0)
         cfg = b.build()
 
         self.base_checks(cfg)
@@ -47,7 +35,7 @@ class CFGBuilderTest(unittest.TestCase):
         entry, exit = b.get_entry(), b.get_exit()
 
         l0 = b.on_stmt(b.get_label(entry, 0), parse_stmt('f(a, b, c)'), exit)
-        b.add_edge(b.add_node(entry, BBlock(set(), set())), l0)
+        b.add_edge(b.add_node(entry, DummyBlock()), l0)
         cfg = b.build()
 
         self.base_checks(cfg)
@@ -62,7 +50,7 @@ class CFGBuilderTest(unittest.TestCase):
         entry, exit = b.get_entry(), b.get_exit()
 
         l0 = b.on_stmt(b.get_label(entry, 0), parse_stmt('if a:\n  x = b\nelse:\n  x = c'), exit)
-        b.add_edge(b.add_node(entry, BBlock(set(), set())), l0)
+        b.add_edge(b.add_node(entry, DummyBlock()), l0)
         cfg = b.build()
 
         self.base_checks(cfg)
@@ -85,7 +73,7 @@ class CFGBuilderTest(unittest.TestCase):
         entry, exit = b.get_entry(), b.get_exit()
 
         l0 = b.on_stmt(b.get_label(entry, 0), parse_stmt('while a:\n  a = a - 1'), exit)
-        b.add_edge(b.add_node(entry, BBlock(set(), set())), l0)
+        b.add_edge(b.add_node(entry, DummyBlock()), l0)
         cfg = b.build()
 
         self.base_checks(cfg)
@@ -102,7 +90,7 @@ class CFGBuilderTest(unittest.TestCase):
 
         self.assertEqual(exit, loop_exit)
 
-        lvs = cfg.live_vars()
+        lvs = live_vars(cfg)
         self.assertEqual({
             entry: {'a'},
             l0: {'a'},
@@ -110,12 +98,12 @@ class CFGBuilderTest(unittest.TestCase):
             exit: set()
         }, lvs)
 
-        phis = cfg.phi_nodes()
+        phis = phi_nodes(cfg)
 
         self.assertEqual({l0: {'a'}}, phis)
 
     def test_complex(self):
-        b = CFGBuilder(labeler, MyASTBBlockFactory())
+        b = CFGBuilder(labeler, bbf)
         entry, exit = b.get_entry(), b.get_exit()
 
         code = '''
@@ -127,7 +115,7 @@ while n:
 _return_ = i
         '''
 
-        cfg = b.make_cfg(my_parse_stmts(parse_stmts(code)), set())
+        cfg = b.make_cfg(parse_stmts(code), set())
 
         self.base_checks(cfg)
 
@@ -153,7 +141,7 @@ _return_ = i
         self.assertEqual({'i'}, cfg.get_uses(l_exit))
         self.assertEqual([exit], cfg.get_succs(l_exit))
 
-        lvs = cfg.live_vars()
+        lvs = live_vars(cfg)
         self.assertEqual(8, len(lvs))
         self.assertEqual(set(), lvs[entry])
         self.assertEqual(set(), lvs[l0])
@@ -164,14 +152,84 @@ _return_ = i
         self.assertEqual({'i'}, lvs[l_exit])
         self.assertEqual(set(), lvs[exit])
 
-        phis = cfg.phi_nodes()
+        phis = phi_nodes(cfg)
         self.assertEqual(1, len(phis))
         self.assertEqual({'n', 'i'}, phis[l_head])
 
-        from pynotole.ssa import mk_cfg
 
-        res = mk_cfg(my_parse_stmts(parse_stmts(code)))
+class InstrBlockTestCase(unittest.TestCase):
+    def test_defs_uses_simple(self):
+        bb = BBlock(SimpleInstructionRenamer, mk_instrs('a = b\nc = a'))
+        self.assertEqual(({'a', 'c'}, {'b'}), bb.get_defs_uses())
+
+    def test_defs_uses_expr_simple(self):
+        bb = BBlock(SimpleInstructionRenamer, mk_instrs('a'))
+        self.assertEqual((set(), {'a'}), bb.get_defs_uses())
+
+    def test_defs_uses_pyast(self):
+        bb = BBlock(AstStmtRenamer, parse_stmts('a = b\nc = a'))
+        self.assertEqual(({'a', 'c'}, {'b'}), bb.get_defs_uses())
+
+    def test_defs_uses_expr_pyast(self):
+        bb = BBlock(AstStmtRenamer, parse_stmts('a'))
+        self.assertEqual((set(), {'a'}), bb.get_defs_uses())
+
+
+class SSAConvertorTest(unittest.TestCase):
+    def test_make_SSA_cfg_builder(self):
+        builder = CFGBuilder(labeler, bbf)
+        code = '''
+x = 0
+y = 0
+while a:
+    if t:
+        y = 1
+        x = 0
+    else:
+        tmp = x
+        x = y
+        y = tmp
+f(x,y)
+        '''
+        cfg = builder.make_cfg(parse_stmts(code), {'a', 't'})
+        a,b = make_SSA(cfg)
         pass
+
+    def test_make_SSA(self):
+        cfg = CFG.make([
+            ('r', mk_block(''), ['A']),
+            ('A', mk_block(''), ['B', 'C']),
+            ('B', mk_block('y = 1\nx = 0'), ['D']),
+            ('C', mk_block('tmp = x\nx = y\ny = tmp'), ['D', 'E']),
+            ('D', mk_block('y = f(x, y)'), ['A', 'E']),
+            ('E', mk_block('f(x, y)'), []),
+        ])
+
+        expected_instrs = {
+            'r': [], 'A': [],
+            'B': mk_instrs('y2 = 1\nx2 = 0'),
+            'C': mk_instrs('tmp = x1\nx3 = y1\ny3 = tmp'),
+            'D': mk_instrs('y5 = f(x4, y4)'),
+            'E': mk_instrs('f(x5, y6)')
+        }
+        expected_phis = {
+            'A': [PhiFunc('x1', {'D': 'x4', 'r': None}), PhiFunc('y1', {'D': 'y5', 'r': None})],
+            'D': [PhiFunc('x4', {'B': 'x2', 'C': 'x3'}), PhiFunc('y4', {'B': 'y2', 'C': 'y3'})],
+            'E': [PhiFunc('x5', {'D': 'x4', 'C': 'x3'}), PhiFunc('y6', {'D': 'y5', 'C': 'y3'})],
+        }
+
+        block_instrs, phi_funcs = make_SSA(cfg)
+
+        self.assertEqual(block_instrs.keys(), block_instrs.keys())
+
+        instr_places = extract_places_from_blocks(block_instrs)
+        phi_places = extract_places_from_phis(phi_funcs)
+
+        expected_instr_places = extract_places_from_blocks(expected_instrs)
+        expected_phi_places = extract_places_from_phis(expected_phis)
+
+        matches = match_places(self, instr_places | phi_places, expected_instr_places | expected_phi_places)
+        unify(self, matches)
 
 
 if __name__ == '__main__':

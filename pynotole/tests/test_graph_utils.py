@@ -1,6 +1,7 @@
 import unittest
 
-from pynotole.graph_utils import *
+from pynotole.graph.utils import *
+from tests.utils.graph import mk_block
 
 
 class GraphUtilsTestCase(unittest.TestCase):
@@ -52,19 +53,19 @@ class GraphUtilsTestCase(unittest.TestCase):
         self.assertEqual({fset({1}), fset({2,3,4,5}), fset({6})}, cycles)
 
     def test_cfg(self):
-        cfg = CFG([
-            (1, {'i', 'n', 'a'}, set(), [2]),
-            (2, set(), {'i', 'n'}, [3, 4, 6]),
-            (3, {'b'}, set(), [5]),
-            (4, {'b'}, {'i', 'n'}, [5]),
-            (5, {'i', 'b'}, {'i', 'a', 'b'}, [2]),
-            (6, set(), {'a'}, set())
+        cfg = CFG.make([
+            (1, mk_block('i = 0\nn = 0\na = 0'), [2]),
+            (2, mk_block('f(i, n)'), [3, 4, 6]),
+            (3, mk_block('b = 1'), [5]),
+            (4, mk_block('b = f(i, n)'), [5]),
+            (5, mk_block('i = f(a, i)\nb = g(a, b)'), [2]),
+            (6, mk_block('a'), set())
         ])
 
         self.assertEqual({1,2,3,4,5,6}, cfg.get_nodes())
         self.assertEqual([(1,2), (2,3), (2,4), (2,6), (3,5), (4,5), (5,2)], cfg.get_edges())
 
-        res = cfg.live_vars()
+        res = live_vars(cfg)
         self.assertEqual(set(), res[1])
         self.assertEqual({'i', 'n', 'a'}, res[2])
         self.assertEqual({'i', 'a', 'n'}, res[3])
@@ -72,9 +73,9 @@ class GraphUtilsTestCase(unittest.TestCase):
         self.assertEqual({'i', 'a', 'b', 'n'}, res[5])
         self.assertEqual({'a'}, res[6])
 
-        min_phis = cfg.phi_nodes(min=True)
+        min_phis = phi_nodes(cfg, min=True)
         self.assertEqual({2: {'i'}, 5: {'b'}}, min_phis)
-        phis = cfg.phi_nodes(min=False)
+        phis = phi_nodes(cfg, min=False)
         self.assertEqual({2: {'i', 'b'}, 5: {'b'}}, phis)
 
 
