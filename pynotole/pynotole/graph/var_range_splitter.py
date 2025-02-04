@@ -19,18 +19,6 @@ def split_var_ranges(f: ast.FunctionDef) -> ast.FunctionDef:
                     mp[fr] = []
                 mp[fr].append((phi.vdef, v))
 
-    def resolve_index(prefix, i):
-        if prefix + (i,) in cfg.blocks:
-            return prefix + (i,)
-        elif prefix + (i, 'if-test') in cfg.blocks:
-            return prefix + (i, 'if-test')
-        elif prefix + (i, 'while-test') in cfg.blocks:
-            return prefix + (i, 'while-test')
-        elif prefix + (i, 'for-test') in cfg.blocks:
-            return prefix + (i, 'for-test')
-        else:
-            assert False
-
     def extract_expr(idx):
         instrs = blocks[idx]
         assert len(instrs) == 1
