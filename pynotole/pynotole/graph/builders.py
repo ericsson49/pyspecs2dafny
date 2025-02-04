@@ -3,8 +3,7 @@ import ast
 from toolz.itertoolz import concat, mapcat
 from typing import Collection, Mapping
 
-from .cfg import BBlock, BBlockFactory, InstructionRenamer
-
+from .cfg import BBlock, BBlockFactory, InstructionRenamer, DummyBlock
 
 type PyAST = ast.stmt | list[ast.stmt]
 
@@ -12,9 +11,29 @@ type PyAST = ast.stmt | list[ast.stmt]
 class AstStmtRenamer(InstructionRenamer[ast.stmt]):
     @classmethod
     def get_defs_uses(cls, instr: ast.stmt) -> tuple[Collection[str], Collection[str]]:
+        def get_target_defs_uses(e: ast.expr):
+            match e:
+                case ast.Name(tgt):
+                    return {tgt}, set()
+                case ast.Attribute(e, _):
+                    return set(), _get_uses(e)
+                case ast.Subscript(e, idx) if not isinstance(idx, (ast.Tuple, ast.slice)):
+                    return set(), _get_uses(e) | _get_uses(idx)
+                case ast.Tuple(elts):
+                    defs, uses = set(), set()
+                    for e in elts:
+                        d, u = get_target_defs_uses(e)
+                        defs |= d
+                        uses |= u
+                    return defs, uses
+                case _:
+                    assert False
         match instr:
             case ast.Assert(test, None):
                 return (set(), _get_uses(test))
+            case ast.Assign([tgt], value):
+                defs, uses = get_target_defs_uses(tgt)
+                return defs, uses | _get_uses(value)
             case ast.Assign([ast.Name(target)], value):
                 return ({target}, _get_uses(value))
             case ast.Assign([ast.Attribute(v, _)], value):
@@ -28,13 +47,23 @@ class AstStmtRenamer(InstructionRenamer[ast.stmt]):
             case ast.Expr(value):
                 return (set(), _get_uses(value))
             case _:
-                assert False
+                assert False, instr
 
     @classmethod
     def rename_defs(cls, instr: ast.stmt, var_map: Mapping[str, str]) -> ast.stmt:
+        def rename_target(e: ast.expr):
+            match e:
+                case ast.Name(v):
+                    return ast.Name(var_map.get(v, v))
+                case ast.Attribute() | ast.Subscript():
+                    return e
+                case ast.Tuple(elts):
+                    return ast.Tuple([rename_target(e) for e in elts])
+                case _:
+                    assert False
         match instr:
-            case ast.Assign([ast.Name(v) as target], value):
-                return ast.Assign([ast.Name(var_map.get(v, v))], value)
+            case ast.Assign([target], value):
+                return ast.Assign([rename_target(target)], value)
             case ast.Expr():
                 return instr
             case _:
@@ -42,11 +71,23 @@ class AstStmtRenamer(InstructionRenamer[ast.stmt]):
 
     @classmethod
     def rename_uses(cls, instr: ast.stmt, var_map: Mapping[str, str]) -> ast.stmt:
+        def rename_in_targets(e: ast.expr):
+            match e:
+                case ast.Name():
+                    return e
+                case ast.Attribute(v, attr):
+                    return ast.Attribute(_rename_uses(v, var_map), attr)
+                case ast.Subscript(v, idx) if not isinstance(idx, (ast.slice, ast.Tuple)):
+                    return ast.Subscript(_rename_uses(v, var_map), _rename_uses(idx, var_map))
+                case ast.Tuple(elts):
+                    return ast.Tuple([_rename_uses(e, var_map) for e in elts])
+                case _:
+                    assert False
         match instr:
             case ast.Expr(value):
                 return ast.Expr(_rename_uses(value, var_map))
-            case ast.Assign([ast.Name() as target], value):
-                return ast.Assign([target], _rename_uses(value, var_map))
+            case ast.Assign([target], value):
+                return ast.Assign([rename_in_targets(target)], _rename_uses(value, var_map))
             case _:
                 assert False
 
@@ -58,10 +99,26 @@ def _rename_uses(e: ast.expr, var_map: Mapping[str, str]) -> ast.expr:
             return ast.Name(var_map[v])
         case ast.Name():
             return e
-        case ast.Call(func, args, []):
-            return ast.Call(_rename_uses(func, var_map), [_rename_uses(a, var_map) for a in args], [])
+        case ast.Attribute(v, attr):
+            return ast.Attribute(_rename_uses(v, var_map), attr)
+        case ast.Subscript(v, idx) if not isinstance(idx, (ast.slice, ast.Tuple)):
+            return ast.Subscript(_rename_uses(v, var_map), _rename_uses(idx, var_map))
+        case ast.BoolOp(op, exprs):
+            return ast.BoolOp(op, [_rename_uses(e, var_map) for e in exprs])
+        case ast.BinOp(a, op, b):
+            return ast.BinOp(_rename_uses(a, var_map), op, _rename_uses(b, var_map))
+        case ast.Compare(a, [op], [b]):
+            return ast.Compare(_rename_uses(a, var_map), [op], [_rename_uses(b, var_map)])
+        case ast.Call(func, args, kwds):
+            args_ = [_rename_uses(a, var_map) for a in args]
+            kwds_ = [ast.keyword(kwd.arg, _rename_uses(kwd.value, var_map)) for kwd in kwds]
+            return ast.Call(_rename_uses(func, var_map), args_, kwds_)
+        case ast.Tuple(elts):
+            return ast.Tuple([_rename_uses(e, var_map) for e in elts])
+        case ast.IfExp(test, body, orelse):
+            return ast.IfExp(_rename_uses(test, var_map), _rename_uses(body, var_map), _rename_uses(orelse, var_map))
         case _:
-            assert False
+            assert False, e
 
 
 class PyASTBBlockFactory(BBlockFactory[PyAST]):
@@ -117,6 +174,8 @@ class PyASTBBlockFactory(BBlockFactory[PyAST]):
         match n:
             case ast.Assert() | ast.Assign() | ast.AnnAssign() | ast.Expr():
                 return self.block_from_stmt(n)
+            case ast.Pass():
+                return DummyBlock()
             case _:
                 assert False, n
 

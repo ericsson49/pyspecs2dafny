@@ -1,6 +1,9 @@
+import ast
+import astor
 import unittest
 
 from pynotole.graph.builders import *
+from pynotole.graph.var_range_splitter import split_var_ranges
 from utils.ssa import *
 
 
@@ -157,6 +160,233 @@ _return_ = i
         self.assertEqual({'n', 'i'}, phis[l_head])
 
 
+def stmts_to_str(st: ast.stmt | list[ast.stmt]) -> str:
+    if isinstance(st, ast.stmt):
+        return astor.to_source(st)
+    else:
+        return ''.join([astor.to_source(s) for s in st])
+
+class SplitVarRangesTestCase(unittest.TestCase):
+    def compare(self, a, b):
+        a_code = astor.to_source(ast.parse(astor.to_source(a)))
+        b_code = astor.to_source(ast.parse(astor.to_source(b)))
+        if ast.dump(ast.parse(a_code)) != ast.dump(ast.parse(b_code)):
+            import difflib
+            pairs = set()
+            for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=a_code, b=b_code, autojunk=False).get_opcodes():
+                if tag == 'replace':
+                    pairs.add((a_code[i1-1:i2].strip(), b_code[j1-1:j2].strip()))
+                elif tag != 'equal':
+                    self.assertEqual(a_code, b_code)
+            unify(self, pairs)
+
+    def test_split_var_ranges_simple(self):
+        f = parse_stmt('''
+def f(b):
+    a = b
+''')
+
+        expected = parse_stmt('''
+def f(b):
+    a_1 = b
+''')
+        self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_if(self):
+        f = parse_stmt('''
+def f(c, b):
+    if c:
+        a = b
+''')
+
+        expected = parse_stmt('''
+def f(c, b):
+    if c:
+        a_1 = b
+        ''')
+        self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_if_else(self):
+        f = parse_stmt('''
+def f(c, b, d):
+    if c:
+        a = b
+    else:
+        a = d
+    x = a
+''')
+
+        expected = parse_stmt('''
+def f(c, b, d):
+    if c:
+        a_1 = b
+        a_2 = a_1
+    else:
+        a_3 = d
+        a_2 = a_3
+    x_1 = a_2
+''')
+        #self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_if_else_return(self):
+        f = parse_stmt('''
+def f(c, b, d):
+    if c:
+        a = b
+    else:
+        a = d
+    return a
+''')
+
+        expected = parse_stmt('''
+def f(c, b, d):
+    if c:
+        a_1 = b
+        a_2 = a_1
+    else:
+        a_3 = d
+        a_2 = a_3
+    return a_2
+''')
+        self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_while(self):
+        f = parse_stmt('''
+def f(n):
+    a = 0
+    while n:
+        a = a + n
+        n = n - 1
+''')
+
+        expected = parse_stmt('''
+def f(n):
+    a_1 = 0
+    a_2 = a_1
+    n_1 = n
+    while n_1:
+        a_3 = a_2 + n_1
+        n_2 = n_1 - 1
+        a_2 = a_3
+        n_1 = n_2
+        
+''')
+        self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_for(self):
+        f = parse_stmt('''
+def f(ls):
+    a = 0
+    for i in ls:
+        a = a + i
+''')
+
+        expected = parse_stmt('''
+def f(ls):
+    a_1 = 0
+    a_2 = a_1
+    for i_1 in ls:
+        a_3 = a_2 + i_1
+        a_2 = a_3
+        
+''')
+        self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_while_break(self):
+        f = parse_stmt('''
+def f(n):
+    a = 0
+    while n:
+        n = n - 1
+        if n == 4:
+            break
+''')
+
+        expected = parse_stmt('''
+def f(n):
+    a_1 = 0
+    n_1 = n
+    while n_1:
+        n_2 = n_1 - 1
+        if n_2 == 4:
+            break
+        else:
+            n_1 = n_2
+''')
+        self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_while_continue(self):
+        f = parse_stmt('''
+def f(n):
+    a = 0
+    while n:
+        n = n - 1
+        if n == 4:
+            continue
+''')
+
+        expected = parse_stmt('''
+def f(n):
+    a_1 = 0
+    n_1 = n
+    while n_1:
+        n_2 = n_1 - 1
+        if n_2 == 4:
+            n_1 = n_2
+            continue
+        else:
+            n_1 = n_2
+''')
+        self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_for_break(self):
+        f = parse_stmt('''
+def f(ls):
+    a = 0
+    for i in ls:
+        a = a + i
+        if i == 3:
+            break
+''')
+
+        expected = parse_stmt('''
+def f(ls):
+    a_1 = 0
+    a_2 = a_1
+    for i_1 in ls:
+        a_3 = a_2 + i_1
+        if i_1 == 3:
+            break
+        else:
+            a_2 = a_3
+''')
+        self.compare(expected, split_var_ranges(f))
+
+    def test_split_var_ranges_for_continue(self):
+        f = parse_stmt('''
+def f(ls):
+    a = 0
+    for i in ls:
+        a = a + i
+        if i == 3:
+            continue
+''')
+
+        expected = parse_stmt('''
+def f(ls):
+    a_1 = 0
+    a_2 = a_1
+    for i_1 in ls:
+        a_3 = a_2 + i_1
+        if i_1 == 3:
+            a_2 = a_3
+            continue
+        else:
+            a_2 = a_3
+''')
+        self.compare(expected, split_var_ranges(f))
+
+
 class InstrBlockTestCase(unittest.TestCase):
     def test_defs_uses_simple(self):
         bb = BBlock(SimpleInstructionRenamer, mk_instrs('a = b\nc = a'))
@@ -174,6 +404,86 @@ class InstrBlockTestCase(unittest.TestCase):
         bb = BBlock(AstStmtRenamer, parse_stmts('a'))
         self.assertEqual((set(), {'a'}), bb.get_defs_uses())
 
+
+class AstStmtRenamerTestCase(unittest.TestCase):
+    def test_defs_uses_expr(self):
+        self.assertEqual(set(), AstStmtRenamer.get_defs_uses(parse_stmt('1'))[1])
+        self.assertEqual({'a'}, AstStmtRenamer.get_defs_uses(parse_stmt('a'))[1])
+        self.assertEqual({'a'}, AstStmtRenamer.get_defs_uses(parse_stmt('a + 5'))[1])
+
+        self.assertEqual({'a'}, AstStmtRenamer.get_defs_uses(parse_stmt('a.f'))[1])
+        self.assertEqual({'a'}, AstStmtRenamer.get_defs_uses(parse_stmt('a[1]'))[1])
+        self.assertEqual({'a', 'b'}, AstStmtRenamer.get_defs_uses(parse_stmt('a[b.f]'))[1])
+        self.assertEqual({'a', 'b'}, AstStmtRenamer.get_defs_uses(parse_stmt('a.f[b]'))[1])
+
+        self.assertEqual({'a', 'b'}, AstStmtRenamer.get_defs_uses(parse_stmt('a + b'))[1])
+        self.assertEqual({'a', 'b', 'c'}, AstStmtRenamer.get_defs_uses(parse_stmt('a*b + c'))[1])
+        self.assertEqual({'a', 'b'}, AstStmtRenamer.get_defs_uses(parse_stmt('a>b'))[1])
+        self.assertEqual({'a', 'b', 'd', 'e'}, AstStmtRenamer.get_defs_uses(parse_stmt('a*e>b*d'))[1])
+        self.assertEqual({'a'}, AstStmtRenamer.get_defs_uses(parse_stmt('-a'))[1])
+
+        self.assertEqual({'a', 'b', 'c'}, AstStmtRenamer.get_defs_uses(parse_stmt('a or b > c'))[1])
+        self.assertEqual({'a', 'b', 'c'}, AstStmtRenamer.get_defs_uses(parse_stmt('a and b > c'))[1])
+        self.assertEqual({'a'}, AstStmtRenamer.get_defs_uses(parse_stmt('not a'))[1])
+
+        self.assertEqual(set(), AstStmtRenamer.get_defs_uses(parse_stmt('f()'))[1])
+        self.assertEqual(set(), AstStmtRenamer.get_defs_uses(parse_stmt('f(1)'))[1])
+        self.assertEqual({'a'}, AstStmtRenamer.get_defs_uses(parse_stmt('f(a)'))[1])
+        self.assertEqual({'a', 'b'}, AstStmtRenamer.get_defs_uses(parse_stmt('f(a, b)'))[1])
+        self.assertEqual({'a', 'b'}, AstStmtRenamer.get_defs_uses(parse_stmt('f(a, k=b)'))[1])
+
+        self.assertEqual({'a', 'b'}, AstStmtRenamer.get_defs_uses(parse_stmt('(a, b)'))[1])
+
+        self.assertEqual({'a', 'b', 'c'}, AstStmtRenamer.get_defs_uses(parse_stmt('a if b else c'))[1])
+
+    def test_defs_uses_assign(self):
+        self.assertEqual(({'a'}, set()), AstStmtRenamer.get_defs_uses(parse_stmt('a = 1')))
+        self.assertEqual(({'a'}, {'b'}), AstStmtRenamer.get_defs_uses(parse_stmt('a = b')))
+        self.assertEqual(({'a'}, {'a'}), AstStmtRenamer.get_defs_uses(parse_stmt('a = a')))
+        self.assertEqual(({'a'}, {'b', 'c'}), AstStmtRenamer.get_defs_uses(parse_stmt('a = b + c')))
+
+        self.assertEqual((set(), {'a', 'b'}), AstStmtRenamer.get_defs_uses(parse_stmt('a.f = b')))
+        self.assertEqual((set(), {'a', 'b', 'c'}), AstStmtRenamer.get_defs_uses(parse_stmt('a[c] = b')))
+        self.assertEqual((set(), {'a', 'b', 'c'}), AstStmtRenamer.get_defs_uses(parse_stmt('a.f[c] = b')))
+
+        self.assertEqual(({'a', 'b'}, {'c'}), AstStmtRenamer.get_defs_uses(parse_stmt('a,b = c')))
+        self.assertEqual(({'a'}, {'b', 'c'}), AstStmtRenamer.get_defs_uses(parse_stmt('a, b.f = c')))
+        self.assertEqual(({'b'}, {'a', 'i', 'c'}), AstStmtRenamer.get_defs_uses(parse_stmt('a[i], b = c')))
+
+    def check_equal(self, a: ast.stmt, b: ast.stmt):
+        self.assertEqual(astor.to_source(a), astor.to_source(b))
+
+    def test_rename_uses(self):
+        exprs = ['a', '1', '(a, b)', 'a+b', 'a.f', 'a[i]', 'a.f[i]', 'a[b.g]',
+                 'f()', 'f(a)', 'f(a,b)', 'f(f(a), b)', 'f(a+b)', 'f(a,k=d)']
+
+        for expr in exprs:
+            uses = AstStmtRenamer.get_defs_uses(parse_stmt(expr))[1]
+            for v in uses:
+                v_ = f'{v}1'
+                self.check_equal(parse_stmt(expr.replace(v, v_)), AstStmtRenamer.rename_uses(parse_stmt(expr), {v: v_}))
+                self.check_equal(parse_stmt(expr), AstStmtRenamer.rename_uses(parse_stmt(expr), {'some_other_var': v_}))
+
+    def test_rename_defs(self):
+        self.check_equal(parse_stmt('a0 = 1'), AstStmtRenamer.rename_defs(parse_stmt('a = 1'), {'a': 'a0'}))
+        self.check_equal(parse_stmt('a0 = b'), AstStmtRenamer.rename_defs(parse_stmt('a = b'), {'a': 'a0'}))
+        self.check_equal(parse_stmt('a0 = a'), AstStmtRenamer.rename_defs(parse_stmt('a = a'), {'a': 'a0'}))
+        self.check_equal(parse_stmt('a = 1'), AstStmtRenamer.rename_defs(parse_stmt('a = 1'), {'b': 'b0'}))
+        self.check_equal(parse_stmt('a = b'), AstStmtRenamer.rename_defs(parse_stmt('a = b'), {'b': 'b0'}))
+
+        self.check_equal(parse_stmt('a.f = b'), AstStmtRenamer.rename_defs(parse_stmt('a.f = b'), {'a': 'a0'}))
+        self.check_equal(parse_stmt('a.f = b'), AstStmtRenamer.rename_defs(parse_stmt('a.f = b'), {'b': 'b0'}))
+
+        self.check_equal(parse_stmt('a[i] = b'), AstStmtRenamer.rename_defs(parse_stmt('a[i] = b'), {'a': 'a0'}))
+        self.check_equal(parse_stmt('a[i] = b'), AstStmtRenamer.rename_defs(parse_stmt('a[i] = b'), {'b': 'b0'}))
+        self.check_equal(parse_stmt('a[i] = b'), AstStmtRenamer.rename_defs(parse_stmt('a[i] = b'), {'i': 'i0'}))
+
+        self.check_equal(parse_stmt('a0, b = b, a'), AstStmtRenamer.rename_defs(parse_stmt('a, b = b, a'), {'a': 'a0'}))
+        self.check_equal(parse_stmt('a, b0 = b, a'), AstStmtRenamer.rename_defs(parse_stmt('a, b = b, a'), {'b': 'b0'}))
+        self.check_equal(parse_stmt('a0, b0 = b, a'), AstStmtRenamer.rename_defs(parse_stmt('a, b = b, a'), {'b': 'b0', 'a': 'a0'}))
+
+        self.check_equal(parse_stmt('a0, b[i] = b, a'), AstStmtRenamer.rename_defs(parse_stmt('a, b[i] = b, a'), {'a': 'a0', 'b': 'b0'}))
+        self.check_equal(parse_stmt('b.f, a0 = b, a'), AstStmtRenamer.rename_defs(parse_stmt('b.f, a = b, a'), {'a': 'a0', 'b': 'b0'}))
 
 class SSAConvertorTest(unittest.TestCase):
     def test_make_SSA_cfg_builder(self):

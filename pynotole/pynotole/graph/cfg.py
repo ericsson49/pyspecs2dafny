@@ -1,3 +1,4 @@
+import ast
 from typing import Collection, Mapping, Never
 
 from .utils import CFG
@@ -58,6 +59,7 @@ class InstructionRenamer[T]:
 class BBlock[I]:
     def __init__(self, instr_renamer: type[InstructionRenamer[I]], instrs: list[I]):
         self.instr_renamer = instr_renamer
+        assert isinstance(instrs, list)
         self.instrs = instrs
 
     def get_instr_def_uses(self, instr) -> tuple[Collection[str], Collection[str]]:
@@ -130,6 +132,11 @@ class CFGBuilder[AST]:
     def add_edge(self, frm: object, to: object):
         self.edges.append((frm, to))
 
+    def add_block(self, block_id: L, block: BBlock, to: L) -> L:
+        self.add_node(block_id, block)
+        self.add_edge(block_id, to)
+        return block_id
+
     def on_stmt(self, idx: L, s: AST, nxt: L) -> L:
         bbf = self.bblock_factory
 
@@ -154,7 +161,7 @@ class CFGBuilder[AST]:
             return loop_head
         elif st := bbf.unapply_for(s):
             pre_head, pre_body, body = st
-            test = BBlock(set(), set())
+            test = DummyBlock()
             loop_head = self.add_node(self.get_label(idx, 'for-test'), test)
             self.loops.append((loop_head, nxt))
             body_label = self.on_stmt(self.get_label(idx, 'for-body'), body, loop_head)
@@ -163,34 +170,31 @@ class CFGBuilder[AST]:
             self.add_edge(pre_body_label, body_label)
             self.add_edge(loop_head, pre_body_label)
             self.add_edge(loop_head, nxt)
-            pre_head_label = self.add_node(self.get_label(idx, 'for-pre-head'), pre_head)
-            self.add_edge(pre_head_label, loop_head)
-            return pre_head_label
+            return self.add_block(self.get_label(idx, 'for-pre-head'), pre_head, loop_head)
         elif st := bbf.unapply_if(s):
             test, body, orelse = st
             if_head = self.add_node(self.get_label(idx, 'if-test'), test)
+            assert len(body) > 0
             body_entry = self.on_stmt(self.get_label(idx, 'if-then'), body, nxt)
+            if len(orelse) == 0:
+                orelse = [ast.Pass()]
             else_entry = self.on_stmt(self.get_label(idx, 'if-else'), orelse, nxt)
             self.add_edge(if_head, body_entry)
             self.add_edge(if_head, else_entry)
             return if_head
         elif (st := bbf.unapply_break(s)) is not None:
-            return self.loops[-1][1]
+            return self.add_block(idx, DummyBlock(), self.loops[-1][1])
         elif (st := bbf.unapply_continue(s)) is not None:
-            return self.loops[-1][0]
+            return self.add_block(idx, DummyBlock(), self.loops[-1][0])
         elif (st := bbf.unapply_return(s)) is not None:
             if st == ():
                 return self.get_exit()
             else:
                 assert isinstance(st, BBlock)
-                return_label = self.add_node(idx, st)
-                self.add_edge(return_label, self.get_exit())
-                return return_label
+                return self.add_block(idx, st, self.get_exit())
         else:
             block = bbf.unapply_simple(s)
-            node = self.add_node(idx, block)
-            self.add_edge(node, nxt)
-            return node
+            return self.add_block(idx, block, nxt)
 
     def build(self):
         return BBlockCFG(self.get_entry(), self.get_exit(), self.nodes, self.edges)
