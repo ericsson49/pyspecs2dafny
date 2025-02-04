@@ -69,7 +69,9 @@ def split_var_ranges(f: ast.FunctionDef) -> ast.FunctionDef:
                 case ast.Continue():
                     res.extend(mk_phi_copies(prefix + (i,)))
                     res.append(ast.Continue())
-                case ast.Return():
+                case ast.Return(None):
+                    res.append(ast.Return(None))
+                case ast.Return(_):
                     res.append(ast.Return(extract_expr(prefix + (i,))))
                 case _:
                     idx = prefix + (i,)

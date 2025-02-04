@@ -62,12 +62,16 @@ class AstStmtRenamer(InstructionRenamer[ast.stmt]):
                 case _:
                     assert False
         match instr:
+            case ast.Assert():
+                return instr
             case ast.Assign([target], value):
                 return ast.Assign([rename_target(target)], value)
+            case ast.AnnAssign(ast.Name() as target, anno, value, is_simple):
+                return ast.AnnAssign(rename_target(target), anno, value, is_simple)
             case ast.Expr():
                 return instr
             case _:
-                assert False
+                assert False, instr
 
     @classmethod
     def rename_uses(cls, instr: ast.stmt, var_map: Mapping[str, str]) -> ast.stmt:
@@ -84,12 +88,18 @@ class AstStmtRenamer(InstructionRenamer[ast.stmt]):
                 case _:
                     assert False
         match instr:
+            case ast.Assert(test, None):
+                return ast.Assert(_rename_uses(test, var_map), None)
             case ast.Expr(value):
                 return ast.Expr(_rename_uses(value, var_map))
             case ast.Assign([target], value):
                 return ast.Assign([rename_in_targets(target)], _rename_uses(value, var_map))
+            case ast.AnnAssign(ast.Name() as target, anno, None, is_simple):
+                return instr
+            case ast.AnnAssign(ast.Name() as target, anno, value, is_simple):
+                return ast.AnnAssign(target, anno, _rename_uses(value, var_map), is_simple)
             case _:
-                assert False
+                assert False, instr
 
 def _rename_uses(e: ast.expr, var_map: Mapping[str, str]) -> ast.expr:
     match e:
@@ -109,12 +119,20 @@ def _rename_uses(e: ast.expr, var_map: Mapping[str, str]) -> ast.expr:
             return ast.BinOp(_rename_uses(a, var_map), op, _rename_uses(b, var_map))
         case ast.Compare(a, [op], [b]):
             return ast.Compare(_rename_uses(a, var_map), [op], [_rename_uses(b, var_map)])
+        case ast.UnaryOp(op, value):
+            return ast.UnaryOp(op, _rename_uses(value, var_map))
         case ast.Call(func, args, kwds):
             args_ = [_rename_uses(a, var_map) for a in args]
             kwds_ = [ast.keyword(kwd.arg, _rename_uses(kwd.value, var_map)) for kwd in kwds]
             return ast.Call(_rename_uses(func, var_map), args_, kwds_)
         case ast.Tuple(elts):
             return ast.Tuple([_rename_uses(e, var_map) for e in elts])
+        case ast.List(elts):
+            return ast.List([_rename_uses(e, var_map) for e in elts])
+        case ast.Set(elts):
+            return ast.Set([_rename_uses(e, var_map) for e in elts])
+        case ast.Dict(keys, values):
+            return ast.Dict([_rename_uses(k, var_map) for k in keys], [_rename_uses(v, var_map) for v in values])
         case ast.IfExp(test, body, orelse):
             return ast.IfExp(_rename_uses(test, var_map), _rename_uses(body, var_map), _rename_uses(orelse, var_map))
         case _:
@@ -206,6 +224,8 @@ def _get_uses(e: ast.expr) -> set[str]:
             return set(mapcat(_get_uses, [test, body, orelse]))
         case ast.List(elems):
             return set(mapcat(_get_uses, elems))
+        case ast.Set(elems):
+            return set(mapcat(_get_uses, elems))
         case ast.Dict(keys, values):
             return set(mapcat(_get_uses, concat([keys, values])))
         case ast.Tuple(elems):
@@ -214,7 +234,7 @@ def _get_uses(e: ast.expr) -> set[str]:
             arg_names = {arg.arg for arg in args.args}
             return _get_uses(body) - arg_names
         case _:
-            assert False
+            assert False, e
 
 
 # import myast
